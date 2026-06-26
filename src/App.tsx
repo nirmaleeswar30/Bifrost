@@ -78,6 +78,25 @@ function Dashboard() {
 }
 
 function App() {
+  const theme = useDeviceStore((s) => s.theme);
+  const accentColor = useDeviceStore((s) => s.accentColor);
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+      root.classList.remove('light');
+    } else {
+      root.classList.add('light');
+      root.classList.remove('dark');
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    root.setAttribute('data-accent', accentColor);
+  }, [accentColor]);
+
   return (
     <HashRouter>
       <Routes>

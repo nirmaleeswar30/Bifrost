@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Download, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { Button } from '@/components/ui/button';
 
 interface MediaViewerProps {
   filePath: string;
@@ -54,54 +55,62 @@ export default function MediaViewer({ filePath, fileName, onClose }: MediaViewer
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-[100] flex items-center justify-center"
+      className="fixed inset-0 z-[100] flex items-center justify-center select-none"
       onClick={handleBackdropClick}
-      style={{ backgroundColor: 'rgba(0, 0, 0, 0.92)' }}
+      style={{ backgroundColor: 'rgba(0, 0, 0, 0.94)' }}
     >
       {/* Top bar */}
-      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-6 py-4 z-10 bg-gradient-to-b from-black/70 to-transparent">
+      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-6 py-3 z-10 bg-black/60 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <span className="text-white/90 text-sm font-medium truncate max-w-[400px]">
+          <span className="text-white/90 text-xs font-semibold truncate max-w-[400px]">
             {fileName}
           </span>
         </div>
         <div className="flex items-center gap-2">
           {mediaType === 'image' && (
             <>
-              <button
+              <Button
+                variant="ghost"
+                size="icon-sm"
                 onClick={() => setZoom(z => Math.max(z - 0.25, 0.25))}
-                className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition"
+                className="text-white/70 hover:text-white hover:bg-white/10 cursor-pointer"
                 title="Zoom Out (−)"
               >
-                <ZoomOut className="w-5 h-5" />
-              </button>
-              <span className="text-white/50 text-xs font-mono min-w-[3rem] text-center">
+                <ZoomOut className="w-4 h-4" />
+              </Button>
+              <span className="text-white/50 text-[10px] font-mono min-w-[3rem] text-center">
                 {Math.round(zoom * 100)}%
               </span>
-              <button
+              <Button
+                variant="ghost"
+                size="icon-sm"
                 onClick={() => setZoom(z => Math.min(z + 0.25, 5))}
-                className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition"
+                className="text-white/70 hover:text-white hover:bg-white/10 cursor-pointer"
                 title="Zoom In (+)"
               >
-                <ZoomIn className="w-5 h-5" />
-              </button>
-              <button
+                <ZoomIn className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
                 onClick={() => setRotation(r => r + 90)}
-                className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition"
+                className="text-white/70 hover:text-white hover:bg-white/10 cursor-pointer"
                 title="Rotate (R)"
               >
-                <RotateCw className="w-5 h-5" />
-              </button>
-              <div className="w-px h-6 bg-white/20 mx-1" />
+                <RotateCw className="w-4 h-4" />
+              </Button>
+              <div className="w-px h-5 bg-white/20 mx-1" />
             </>
           )}
-          <button
+          <Button
+            variant="ghost"
+            size="icon-sm"
             onClick={onClose}
-            className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition"
+            className="text-white/70 hover:text-white hover:bg-white/10 cursor-pointer"
             title="Close (Esc)"
           >
-            <X className="w-5 h-5" />
-          </button>
+            <X className="w-4 h-4" />
+          </Button>
         </div>
       </div>
 
@@ -112,7 +121,7 @@ export default function MediaViewer({ filePath, fileName, onClose }: MediaViewer
             src={assetUrl}
             alt={fileName}
             draggable={false}
-            className="max-w-[90vw] max-h-[85vh] object-contain select-none transition-transform duration-200 ease-out"
+            className="max-w-[90vw] max-h-[85vh] object-contain select-none transition-transform duration-150 ease-out"
             style={{
               transform: `scale(${zoom}) rotate(${rotation}deg)`,
             }}
@@ -123,21 +132,21 @@ export default function MediaViewer({ filePath, fileName, onClose }: MediaViewer
             src={assetUrl}
             controls
             autoPlay
-            className="max-w-[90vw] max-h-[85vh] min-w-[300px] min-h-[200px] rounded-lg shadow-2xl"
+            className="max-w-[90vw] max-h-[85vh] min-w-[300px] min-h-[200px] rounded-lg border border-white/10"
             style={{ outline: 'none' }}
           />
         )}
         {mediaType === 'unknown' && (
           <div className="text-white/60 text-center">
-            <p className="text-lg font-medium mb-2">Cannot preview this file type</p>
-            <p className="text-sm">{fileName}</p>
+            <p className="text-sm font-semibold mb-1">Cannot preview this file type</p>
+            <p className="text-xs text-white/40">{fileName}</p>
           </div>
         )}
       </div>
 
       {/* Bottom hint */}
-      <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center py-4 bg-gradient-to-t from-black/70 to-transparent">
-        <span className="text-white/30 text-xs">
+      <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center py-2.5 bg-black/60 border-t border-white/10">
+        <span className="text-white/40 text-[10px]">
           {mediaType === 'image' ? 'Scroll to zoom · R to rotate · Esc to close' : 'Esc to close'}
         </span>
       </div>

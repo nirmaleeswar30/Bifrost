@@ -5,8 +5,6 @@ import {
   Check,
   Smartphone,
   Monitor,
-  ToggleLeft,
-  ToggleRight,
   Clock,
   FileText,
   Link2,
@@ -16,6 +14,10 @@ import {
 import { useDeviceStore } from '../stores/deviceStore';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { Switch } from '@/components/ui/switch';
+import { Card, CardHeader, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface ClipboardEntry {
   id: string;
@@ -26,8 +28,6 @@ interface ClipboardEntry {
   isCurrent?: boolean;
 }
 
-
-
 const typeIcons = {
   text: FileText,
   link: Link2,
@@ -36,8 +36,8 @@ const typeIcons = {
 
 const typeColors = {
   text: 'text-text-secondary',
-  link: 'text-accent-light',
-  image: 'text-emerald-400',
+  link: 'text-primary',
+  image: 'text-emerald-500',
 };
 
 export default function ClipboardSync() {
@@ -99,17 +99,17 @@ export default function ClipboardSync() {
 
   if (!isConnected) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 animate-fade-in">
-        <div className="w-32 h-32 rounded-3xl bg-bg-surface/60 border border-border flex items-center justify-center mb-6">
-          <ClipboardCopy className="w-14 h-14 text-text-muted/30" strokeWidth={1} />
+      <div className="flex-1 flex flex-col items-center justify-center p-6 animate-fade-in bg-bg-primary select-none">
+        <div className="w-16 h-16 rounded-lg bg-bg-surface border border-border flex items-center justify-center mb-4">
+          <ClipboardCopy className="w-8 h-8 text-text-muted/40" strokeWidth={1.5} />
         </div>
-        <h2 className="text-xl font-semibold text-text-primary mb-2">Clipboard Sync</h2>
-        <p className="text-sm text-text-muted text-center max-w-sm mb-6">
+        <h2 className="text-sm font-semibold text-text-primary mb-1">Clipboard Sync</h2>
+        <p className="text-xs text-text-muted text-center max-w-sm mb-5">
           Connect an Android device to sync clipboard content between devices
         </p>
-        <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-surface/40 border border-border text-text-muted">
-          <Smartphone className="w-4 h-4" />
-          <span className="text-sm">No device connected</span>
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-surface border border-border text-text-muted text-xs">
+          <Smartphone className="w-3.5 h-3.5" />
+          <span>No device connected</span>
         </div>
       </div>
     );
@@ -128,42 +128,41 @@ export default function ClipboardSync() {
   const currentEntry = entries.find((e) => e.isCurrent);
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 animate-fade-in">
+    <div className="flex-1 overflow-y-auto p-6 animate-fade-in bg-bg-primary select-none">
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-text-primary tracking-tight">Clipboard</h1>
-            <p className="text-sm text-text-secondary mt-1">
-              Synced clipboard history across devices
+            <h1 className="text-xl font-bold text-text-primary tracking-tight">Clipboard</h1>
+            <p className="text-xs text-text-secondary mt-1">
+              Synced clipboard history across connected devices
             </p>
           </div>
 
-          {/* Auto-sync toggle */}
-          <button
-            onClick={() => setAutoSync(!autoSync)}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-bg-surface/60 border border-border text-sm transition-colors duration-200 cursor-pointer hover:bg-bg-hover"
-          >
-            {autoSync ? (
-              <ToggleRight className="w-5 h-5 text-accent-light" />
-            ) : (
-              <ToggleLeft className="w-5 h-5 text-text-muted" />
-            )}
-            <span className={autoSync ? 'text-text-primary' : 'text-text-muted'}>
+          {/* Auto-sync toggle using Switch */}
+          <div className="flex items-center gap-2.5 bg-bg-surface border border-border px-3 py-1.5 rounded-lg shadow-2xs">
+            <span className={cn(
+              "text-xs font-semibold select-none transition-colors duration-150", 
+              autoSync ? "text-text-primary" : "text-text-muted"
+            )}>
               Auto-sync
             </span>
-          </button>
+            <Switch
+              checked={autoSync}
+              onCheckedChange={setAutoSync}
+            />
+          </div>
         </div>
 
         {/* Current Clipboard */}
         {currentEntry && (
-          <div className="glass gradient-border rounded-xl p-5">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-accent-light uppercase tracking-wider flex items-center gap-1.5">
-                <ClipboardCopy className="w-3.5 h-3.5" />
+          <Card className="bg-bg-surface border-border shadow-xs overflow-hidden">
+            <CardHeader className="px-5 py-3 border-b border-border bg-bg-secondary/15 flex flex-row items-center justify-between space-y-0">
+              <div className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-wider">
+                <ClipboardCopy className="w-4 h-4" />
                 Current Clipboard
-              </span>
-              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-bg-surface text-[11px] text-text-muted">
+              </div>
+              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-bg-secondary text-[10px] text-text-muted border border-border font-medium">
                 {currentEntry.source === 'phone' ? (
                   <Smartphone className="w-3 h-3" />
                 ) : (
@@ -171,30 +170,36 @@ export default function ClipboardSync() {
                 )}
                 {currentEntry.source === 'phone' ? 'Phone' : 'PC'}
               </span>
-            </div>
-            <p className="text-sm text-text-primary bg-bg-primary/50 rounded-lg px-4 py-3 font-mono break-all">
-              {currentEntry.content}
-            </p>
-          </div>
+            </CardHeader>
+            <CardContent className="px-5 py-4">
+              <p className="text-xs text-text-primary bg-bg-primary border border-border rounded-lg px-4 py-3 font-mono break-all leading-relaxed select-text">
+                {currentEntry.content}
+              </p>
+            </CardContent>
+          </Card>
         )}
 
         {/* Clipboard History */}
         <div>
-          <h2 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-2">
-            <Clock className="w-4 h-4" />
+          <h2 className="text-xs font-semibold text-text-secondary mb-3 flex items-center gap-2">
+            <Clock className="w-3.5 h-3.5" />
             History
           </h2>
 
           {entries.length === 0 ? (
-            <div className="glass rounded-2xl p-12 flex flex-col items-center text-center">
-              <ClipboardCopy className="w-12 h-12 text-text-muted/30 mb-4" strokeWidth={1} />
-              <h3 className="text-base font-semibold text-text-secondary mb-2">
-                Clipboard is empty
-              </h3>
-              <p className="text-sm text-text-muted">
-                Copy something on either device to see it here
-              </p>
-            </div>
+            <Card className="bg-bg-surface border-border shadow-xs">
+              <CardContent className="flex flex-col items-center justify-center py-12 px-5 text-center">
+                <div className="w-12 h-12 rounded-lg bg-bg-secondary/30 border border-border flex items-center justify-center mb-4 text-text-muted">
+                  <ClipboardCopy className="w-6 h-6 text-text-muted/50" strokeWidth={1.5} />
+                </div>
+                <h3 className="text-sm font-semibold text-text-primary mb-1">
+                  Clipboard is empty
+                </h3>
+                <p className="text-xs text-text-muted">
+                  Copy something on either device to see it synced here
+                </p>
+              </CardContent>
+            </Card>
           ) : (
             <div className="space-y-2">
               {entries.map((entry) => {
@@ -202,27 +207,29 @@ export default function ClipboardSync() {
                 const typeColor = typeColors[entry.type];
 
                 return (
-                  <div
+                  <Card
                     key={entry.id}
-                    className={`glass rounded-xl p-4 hover:bg-bg-hover/30 transition-all duration-200 group ${
-                      entry.isCurrent ? 'ring-1 ring-accent/20' : ''
-                    }`}
+                    className={cn(
+                      "bg-bg-surface border-border shadow-xs p-4 hover:bg-bg-hover/40 transition-colors duration-150 group",
+                      entry.isCurrent && "border-primary/45 bg-primary/2"
+                    )}
                   >
                     <div className="flex items-start gap-3">
                       {/* Timeline dot */}
-                      <div className="flex flex-col items-center pt-1">
-                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                          entry.isCurrent ? 'bg-accent shadow-[0_0_6px_rgba(99,102,241,0.5)]' : 'bg-text-muted/40'
-                        }`} />
-                        <div className="w-px h-full bg-border/50 mt-1" />
+                      <div className="flex flex-col items-center pt-1.5 shrink-0">
+                        <div className={cn(
+                          "w-2 h-2 rounded-full flex-shrink-0",
+                          entry.isCurrent ? 'bg-primary' : 'bg-text-muted/40'
+                        )} />
+                        <div className="w-px h-full bg-border mt-1.5" />
                       </div>
 
                       {/* Content */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1.5">
-                          <TypeIcon className={`w-3.5 h-3.5 ${typeColor}`} />
-                          <span className="text-[11px] text-text-muted">{entry.timestamp}</span>
-                          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-bg-surface/80 text-[10px] text-text-muted">
+                          <TypeIcon className={cn("w-3.5 h-3.5", typeColor)} />
+                          <span className="text-[10px] text-text-muted">{entry.timestamp}</span>
+                          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-bg-secondary text-[9px] text-text-muted border border-border font-medium">
                             {entry.source === 'phone' ? (
                               <Smartphone className="w-2.5 h-2.5" />
                             ) : (
@@ -232,16 +239,18 @@ export default function ClipboardSync() {
                           </span>
                         </div>
 
-                        <p className="text-sm text-text-primary truncate">
+                        <p className="text-xs text-text-primary truncate select-text font-medium">
                           {entry.content}
                         </p>
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0">
-                        <button
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex-shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
                           onClick={() => handleCopy(entry.id, entry.content)}
-                          className="p-1.5 rounded-lg hover:bg-accent/10 text-text-muted hover:text-accent-light transition-colors cursor-pointer"
+                          className="text-text-muted hover:text-primary cursor-pointer"
                           title="Copy"
                         >
                           {copiedId === entry.id ? (
@@ -249,17 +258,19 @@ export default function ClipboardSync() {
                           ) : (
                             <Copy className="w-3.5 h-3.5" />
                           )}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
                           onClick={() => handleDelete(entry.id)}
-                          className="p-1.5 rounded-lg hover:bg-danger-muted text-text-muted hover:text-danger transition-colors cursor-pointer"
+                          className="text-text-muted hover:text-destructive cursor-pointer"
                           title="Delete"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        </Button>
                       </div>
                     </div>
-                  </div>
+                  </Card>
                 );
               })}
             </div>

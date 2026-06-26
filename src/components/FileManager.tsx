@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   FolderOpen, File, Image, Film, Music, FileText, Archive,
   ChevronRight, Home, RefreshCw, FolderUp, Grid, List,
-  Trash2, Download, CheckSquare, Square, X, Search
+  Trash2, Download, CheckSquare, Square, X
 } from 'lucide-react';
 import { useDeviceStore } from '../stores/deviceStore';
 import { invoke } from '@tauri-apps/api/core';
@@ -10,6 +10,9 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { startDrag } from '@crabnebula/tauri-plugin-drag';
 import MediaViewer from './MediaViewer';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
 interface FileItem {
   name: string;
@@ -29,12 +32,12 @@ const fileIcons: Record<string, typeof File> = {
 };
 
 const fileColors: Record<string, string> = {
-  folder: 'text-accent-light',
-  image: 'text-emerald-400',
-  video: 'text-purple-400',
-  audio: 'text-pink-400',
-  document: 'text-blue-400',
-  archive: 'text-amber-400',
+  folder: 'text-primary',
+  image: 'text-emerald-500',
+  video: 'text-purple-500',
+  audio: 'text-pink-500',
+  document: 'text-blue-500',
+  archive: 'text-amber-500',
   file: 'text-text-muted',
 };
 
@@ -120,12 +123,12 @@ export default function FileManager() {
         setIsLoading(false);
 
         // Progressively load thumbnails for all media files
-        const mediaFiles = sortedFiles.filter(f => {
+        const mediaFiles = sortedFiles.filter((f: FileItem) => {
           const type = getFileType(f.name, f.is_dir);
           return type === 'image' || type === 'video';
         });
         
-        mediaFiles.forEach((file, index) => {
+        mediaFiles.forEach((file: FileItem, index: number) => {
           const fullPath = payload.path === '/' ? `/${file.name}` : `${payload.path}/${file.name}`;
           setTimeout(() => {
             invoke('request_thumbnail', { path: fullPath, reqId: fullPath }).catch(console.error);
@@ -185,7 +188,7 @@ export default function FileManager() {
     }).then(fn => unlistens.push(fn));
 
     listen('file_drag_ready', async (event: any) => {
-      const { path, name } = event.payload;
+      const { path } = event.payload;
       
       // If the user released the mouse before the download finished, do not start the drag.
       if (!isDragActive.current) {
@@ -335,12 +338,12 @@ export default function FileManager() {
 
   if (!isConnected) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 animate-fade-in">
-        <div className="w-32 h-32 rounded-3xl bg-bg-surface/60 border border-border flex items-center justify-center mb-6">
-          <FolderOpen className="w-14 h-14 text-text-muted/30" strokeWidth={1} />
+      <div className="flex-1 flex flex-col items-center justify-center p-6 animate-fade-in bg-bg-primary select-none">
+        <div className="w-16 h-16 rounded-lg bg-bg-surface border border-border flex items-center justify-center mb-4">
+          <FolderOpen className="w-8 h-8 text-text-muted/40" strokeWidth={1.5} />
         </div>
-        <h2 className="text-xl font-semibold text-text-primary mb-2">File Manager</h2>
-        <p className="text-sm text-text-muted text-center max-w-sm mb-6">
+        <h2 className="text-sm font-semibold text-text-primary mb-1">File Manager</h2>
+        <p className="text-xs text-text-muted text-center max-w-sm">
           Connect an Android device to browse and transfer files wirelessly.
         </p>
       </div>
@@ -351,82 +354,165 @@ export default function FileManager() {
 
   return (
     <>
-    <div className="flex-1 flex flex-col h-full overflow-hidden animate-fade-in bg-bg-base relative" onMouseMove={handleMouseMove}>
+    <div className="flex-1 flex flex-col h-full overflow-hidden animate-fade-in bg-bg-primary relative select-none" onMouseMove={handleMouseMove}>
       
       {/* Floating Pop-out Preview */}
       {hoverImage && thumbnails[hoverImage.path] && (
         <div 
-          className="fixed z-50 pointer-events-none rounded-xl overflow-hidden shadow-2xl border border-border/50 bg-bg-surface/80 backdrop-blur-xl transition-opacity duration-200"
+          className="fixed z-50 pointer-events-none rounded-lg overflow-hidden border border-border bg-bg-surface shadow-md transition-opacity duration-150"
           style={{ 
             right: window.innerWidth - hoverImage.x + 20, 
             bottom: window.innerHeight - hoverImage.y + 20,
-            maxWidth: '350px',
-            maxHeight: '350px'
+            maxWidth: '280px',
+            maxHeight: '280px'
           }}
         >
           <img src={thumbnails[hoverImage.path]} alt="Preview" className="w-full h-full object-cover" />
         </div>
       )}
 
-      {/* Dropzone Overlay */}
+      {/* Header */}
       <div className="flex-shrink-0 flex items-center justify-between px-6 py-5">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary tracking-tight">Files</h1>
-          <p className="text-sm text-text-secondary mt-1">Drag & drop to upload files to {breadcrumbs[breadcrumbs.length - 1] || 'Internal Storage'}</p>
+          <h1 className="text-xl font-bold text-text-primary tracking-tight">Files</h1>
+          <p className="text-xs text-text-secondary mt-1">Drag & drop to upload files to {breadcrumbs[breadcrumbs.length - 1] || 'Internal Storage'}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center bg-bg-surface border border-border rounded-lg p-1">
-            <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition ${viewMode === 'list' ? 'bg-bg-hover text-accent-light' : 'text-text-muted hover:text-text-primary'}`}>
-              <List className="w-4 h-4" />
-            </button>
-            <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md transition ${viewMode === 'grid' ? 'bg-bg-hover text-accent-light' : 'text-text-muted hover:text-text-primary'}`}>
-              <Grid className="w-4 h-4" />
-            </button>
+        <div className="flex items-center gap-2">
+          {/* List/Grid toggle using shadcn buttons */}
+          <div className="flex items-center bg-bg-surface border border-border rounded-lg p-0.5">
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => setViewMode('list')}
+              className={cn(
+                "cursor-pointer",
+                viewMode === 'list' ? "bg-bg-hover text-text-primary" : "text-text-muted"
+              )}
+            >
+              <List className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => setViewMode('grid')}
+              className={cn(
+                "cursor-pointer",
+                viewMode === 'grid' ? "bg-bg-hover text-text-primary" : "text-text-muted"
+              )}
+            >
+              <Grid className="w-3.5 h-3.5" />
+            </Button>
           </div>
-          <button onClick={() => loadDirectory(currentPath)} className="p-2 rounded-lg bg-bg-surface border border-border text-text-secondary hover:text-text-primary transition">
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-          </button>
+
+          <Button
+            variant="outline"
+            size="icon-sm"
+            onClick={() => loadDirectory(currentPath)}
+            className="bg-bg-surface border-border text-text-secondary hover:text-text-primary cursor-pointer"
+          >
+            <RefreshCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
+          </Button>
         </div>
       </div>
 
-      <div className="flex-1 flex min-h-0 mx-6 mb-6 gap-4">
+      <div className="flex-1 flex min-h-0 mx-6 mb-6 gap-5">
         
         {/* Left Sidebar Categories */}
-        <div className="w-64 flex-shrink-0 flex flex-col gap-1">
-          <div className="text-xs font-semibold text-text-muted uppercase tracking-wider px-3 mb-2">Locations</div>
+        <div className="w-48 flex-shrink-0 flex flex-col gap-1">
+          <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-3 mb-2">Locations</div>
           
-          <button onClick={() => loadDirectory('/sdcard')} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${currentPath === '/sdcard' ? 'bg-accent/10 text-accent-light font-medium' : 'text-text-secondary hover:bg-bg-surface hover:text-text-primary'}`}>
-            <Home className="w-5 h-5" /> Internal Storage
-          </button>
-          <button onClick={() => loadDirectory('/sdcard/DCIM/Camera')} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${currentPath === '/sdcard/DCIM/Camera' ? 'bg-accent/10 text-accent-light font-medium' : 'text-text-secondary hover:bg-bg-surface hover:text-text-primary'}`}>
-            <Image className="w-5 h-5 text-emerald-400" /> Camera Roll
-          </button>
-          <button onClick={() => loadDirectory('/sdcard/Pictures')} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${currentPath === '/sdcard/Pictures' ? 'bg-accent/10 text-accent-light font-medium' : 'text-text-secondary hover:bg-bg-surface hover:text-text-primary'}`}>
-            <FolderOpen className="w-5 h-5 text-emerald-400" /> Pictures
-          </button>
-          <button onClick={() => loadDirectory('/sdcard/Movies')} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${currentPath === '/sdcard/Movies' ? 'bg-accent/10 text-accent-light font-medium' : 'text-text-secondary hover:bg-bg-surface hover:text-text-primary'}`}>
-            <Film className="w-5 h-5 text-purple-400" /> Videos
-          </button>
-          <button onClick={() => loadDirectory('/sdcard/Download')} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${currentPath === '/sdcard/Download' ? 'bg-accent/10 text-accent-light font-medium' : 'text-text-secondary hover:bg-bg-surface hover:text-text-primary'}`}>
-            <Download className="w-5 h-5 text-blue-400" /> Downloads
-          </button>
+          <Button
+            variant={currentPath === '/sdcard' ? 'secondary' : 'ghost'}
+            onClick={() => loadDirectory('/sdcard')}
+            className={cn(
+              "w-full justify-start gap-2.5 h-8.5 px-3 rounded-lg text-left font-medium transition-all duration-150 cursor-pointer",
+              currentPath === '/sdcard' 
+                ? "bg-bg-hover text-text-primary font-semibold" 
+                : "text-text-secondary hover:bg-bg-surface hover:text-text-primary"
+            )}
+          >
+            <Home className="w-4 h-4 text-text-muted" />
+            <span className="text-xs">Internal Storage</span>
+          </Button>
+
+          <Button
+            variant={currentPath === '/sdcard/DCIM/Camera' ? 'secondary' : 'ghost'}
+            onClick={() => loadDirectory('/sdcard/DCIM/Camera')}
+            className={cn(
+              "w-full justify-start gap-2.5 h-8.5 px-3 rounded-lg text-left font-medium transition-all duration-150 cursor-pointer",
+              currentPath === '/sdcard/DCIM/Camera' 
+                ? "bg-bg-hover text-text-primary font-semibold" 
+                : "text-text-secondary hover:bg-bg-surface hover:text-text-primary"
+            )}
+          >
+            <Image className="w-4 h-4 text-emerald-500" />
+            <span className="text-xs">Camera Roll</span>
+          </Button>
+
+          <Button
+            variant={currentPath === '/sdcard/Pictures' ? 'secondary' : 'ghost'}
+            onClick={() => loadDirectory('/sdcard/Pictures')}
+            className={cn(
+              "w-full justify-start gap-2.5 h-8.5 px-3 rounded-lg text-left font-medium transition-all duration-150 cursor-pointer",
+              currentPath === '/sdcard/Pictures' 
+                ? "bg-bg-hover text-text-primary font-semibold" 
+                : "text-text-secondary hover:bg-bg-surface hover:text-text-primary"
+            )}
+          >
+            <FolderOpen className="w-4 h-4 text-emerald-500" />
+            <span className="text-xs">Pictures</span>
+          </Button>
+
+          <Button
+            variant={currentPath === '/sdcard/Movies' ? 'secondary' : 'ghost'}
+            onClick={() => loadDirectory('/sdcard/Movies')}
+            className={cn(
+              "w-full justify-start gap-2.5 h-8.5 px-3 rounded-lg text-left font-medium transition-all duration-150 cursor-pointer",
+              currentPath === '/sdcard/Movies' 
+                ? "bg-bg-hover text-text-primary font-semibold" 
+                : "text-text-secondary hover:bg-bg-surface hover:text-text-primary"
+            )}
+          >
+            <Film className="w-4 h-4 text-purple-500" />
+            <span className="text-xs">Videos</span>
+          </Button>
+
+          <Button
+            variant={currentPath === '/sdcard/Download' ? 'secondary' : 'ghost'}
+            onClick={() => loadDirectory('/sdcard/Download')}
+            className={cn(
+              "w-full justify-start gap-2.5 h-8.5 px-3 rounded-lg text-left font-medium transition-all duration-150 cursor-pointer",
+              currentPath === '/sdcard/Download' 
+                ? "bg-bg-hover text-text-primary font-semibold" 
+                : "text-text-secondary hover:bg-bg-surface hover:text-text-primary"
+            )}
+          >
+            <Download className="w-4 h-4 text-blue-500" />
+            <span className="text-xs">Downloads</span>
+          </Button>
         </div>
 
         {/* Right Main Content Pane */}
-        <div className="flex-1 glass rounded-2xl border border-border flex flex-col min-w-0 overflow-hidden relative">
+        <Card className="flex-1 bg-bg-surface rounded-xl border border-border flex flex-col min-w-0 overflow-hidden relative shadow-xs">
           
           {/* Breadcrumbs */}
-          <div className="flex items-center gap-2 px-5 py-4 border-b border-border/50 bg-bg-surface/30 text-sm text-text-secondary">
-            <button onClick={() => loadDirectory('/sdcard')} className="hover:text-accent-light transition flex items-center gap-1">
-              <span className="font-medium text-text-primary">sdcard</span>
+          <div className="flex items-center gap-1.5 px-5 py-3 border-b border-border bg-bg-secondary/40 text-xs text-text-secondary">
+            <button
+              onClick={() => loadDirectory('/sdcard')}
+              className="hover:text-primary transition-colors flex items-center gap-1 cursor-pointer focus:outline-none font-semibold text-text-primary"
+            >
+              sdcard
             </button>
             {breadcrumbs.map((crumb, idx) => {
               if (crumb === 'sdcard' && idx === 0) return null;
               const path = '/' + breadcrumbs.slice(0, idx + 1).join('/');
               return (
-                <div key={path} className="flex items-center gap-2">
-                  <ChevronRight className="w-4 h-4 text-text-muted" />
-                  <button onClick={() => loadDirectory(path)} className="hover:text-accent-light transition font-medium text-text-primary">
+                <div key={path} className="flex items-center gap-1.5">
+                  <ChevronRight className="w-3.5 h-3.5 text-text-muted" />
+                  <button
+                    onClick={() => loadDirectory(path)}
+                    className="hover:text-primary transition-colors font-semibold text-text-primary cursor-pointer focus:outline-none"
+                  >
                     {crumb}
                   </button>
                 </div>
@@ -435,20 +521,38 @@ export default function FileManager() {
           </div>
 
           {/* Action Bar Overlay */}
-          <div className={`absolute top-0 left-0 right-0 z-20 bg-accent/10 backdrop-blur-xl border-b border-accent/20 px-5 py-3 flex items-center justify-between transition-transform duration-300 ${selectedFiles.size > 0 ? 'translate-y-0' : '-translate-y-full'}`}>
-            <div className="flex items-center gap-3 text-accent-light font-medium">
-              <button onClick={() => setSelectedFiles(new Set())} className="hover:text-white transition">
-                <X className="w-5 h-5" />
-              </button>
+          <div className={cn(
+            "absolute top-0 left-0 right-0 z-20 bg-bg-secondary border-b border-border px-5 py-2 flex items-center justify-between transition-transform duration-200",
+            selectedFiles.size > 0 ? 'translate-y-0' : '-translate-y-full'
+          )}>
+            <div className="flex items-center gap-2 text-text-primary font-semibold text-xs">
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={() => setSelectedFiles(new Set())}
+                className="text-text-muted hover:text-text-primary cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </Button>
               <span>{selectedFiles.size} selected</span>
             </div>
-            <div className="flex items-center gap-2">
-              <button onClick={handleDownloadSelected} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-surface/80 text-text-primary hover:bg-bg-hover transition text-sm font-medium border border-border/50">
-                <Download className="w-4 h-4" /> Download
-              </button>
-              <button onClick={handleDeleteSelected} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition text-sm font-medium border border-red-500/20">
-                <Trash2 className="w-4 h-4" /> Delete
-              </button>
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadSelected}
+                className="h-7 text-xs font-semibold border-border bg-bg-surface hover:bg-bg-hover text-text-primary cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" /> Download
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteSelected}
+                className="h-7 text-xs font-semibold cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Delete
+              </Button>
             </div>
           </div>
 
@@ -456,16 +560,22 @@ export default function FileManager() {
           <div className="flex-1 overflow-y-auto relative p-4">
             {isLoading && files.length === 0 ? (
               <div className="absolute inset-0 flex items-center justify-center">
-                <RefreshCw className="w-6 h-6 text-accent animate-spin" />
+                <RefreshCw className="w-6 h-6 text-primary animate-spin" />
               </div>
             ) : (
-              <div className={viewMode === 'grid' ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4" : "flex flex-col gap-1"}>
+              <div className={viewMode === 'grid' ? "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3" : "flex flex-col gap-0.5"}>
                 
                 {/* Go Up Directory Item */}
                 {currentPath !== '/sdcard' && currentPath !== '/' && (
-                  <button onClick={navigateUp} className={`w-full flex items-center gap-3 rounded-xl text-left hover:bg-bg-surface transition-colors ${viewMode === 'grid' ? 'p-4 flex-col justify-center text-center border border-transparent hover:border-border' : 'px-4 py-3'}`}>
-                    <FolderUp className="w-6 h-6 text-accent-light" />
-                    <span className="text-sm text-text-primary font-medium">..</span>
+                  <button 
+                    onClick={navigateUp} 
+                    className={cn(
+                      "w-full flex items-center gap-3 rounded-lg text-left hover:bg-bg-hover transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-accent/40 border border-transparent",
+                      viewMode === 'grid' ? 'p-3 flex-col justify-center text-center' : 'px-3 py-2'
+                    )}
+                  >
+                    <FolderUp className="w-5 h-5 text-primary" />
+                    <span className="text-xs text-text-primary font-semibold">..</span>
                   </button>
                 )}
 
@@ -489,39 +599,45 @@ export default function FileManager() {
                         onClick={() => handleFileClick(file)}
                         onMouseEnter={(e) => handleMouseEnter(e, file)}
                         onMouseLeave={handleMouseLeave}
-                        className={`group relative flex flex-col items-center justify-center p-4 rounded-xl text-center transition-all duration-200 border ${isSelected ? 'bg-accent/10 border-accent/30' : 'bg-bg-surface/30 border-border hover:bg-bg-surface hover:border-border/80'}`}
+                        className={cn(
+                          "group relative flex flex-col items-center justify-center p-3 rounded-lg text-center transition-colors duration-150 border focus:outline-none focus:ring-1 focus:ring-accent/40",
+                          isSelected ? 'bg-primary/5 border-primary/20' : 'bg-bg-surface border-border hover:bg-bg-hover/80'
+                        )}
                       >
                         <div 
-                          className={`absolute top-2 left-2 z-10 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                          className={cn(
+                            "absolute top-1.5 left-1.5 z-10 transition-opacity",
+                            isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                          )}
                           onClick={(e) => toggleSelection(e, file.name)}
                         >
-                          {isSelected ? <CheckSquare className="w-5 h-5 text-accent-light" /> : <Square className="w-5 h-5 text-text-muted" />}
+                          {isSelected ? <CheckSquare className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4 text-text-muted/65" />}
                         </div>
                         
-                        {downloading && <div className="absolute inset-0 bg-accent/5 opacity-50 rounded-xl" />}
+                        {downloading && <div className="absolute inset-0 bg-primary/5 rounded-lg animate-pulse" />}
                         {draggingOutFile === file.name && (
-                          <div className="absolute inset-0 bg-background/80 rounded-xl flex items-center justify-center z-20">
-                            <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                          <div className="absolute inset-0 bg-bg-surface/90 rounded-lg flex items-center justify-center z-20">
+                            <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                           </div>
                         )}
                         
-                        <div className="w-12 h-12 rounded-2xl bg-bg-base/50 flex items-center justify-center mb-3 overflow-hidden">
+                        <div className="w-9 h-9 rounded-lg bg-bg-secondary/40 border border-border/80 flex items-center justify-center mb-2 overflow-hidden shrink-0">
                           {thumbnails[fullPath] ? (
-                            <img src={thumbnails[fullPath]} alt={file.name} className="w-full h-full object-cover rounded-2xl" />
+                            <img src={thumbnails[fullPath]} alt={file.name} className="w-full h-full object-cover rounded" />
                           ) : (
-                            <Icon className={`w-6 h-6 ${color} ${downloading ? 'animate-pulse' : ''}`} />
+                            <Icon className={cn("w-5 h-5", color, downloading && 'animate-pulse')} />
                           )}
                         </div>
-                        <span className="text-sm text-text-primary font-medium truncate w-full group-hover:text-accent-light transition-colors">
+                        <span className="text-xs text-text-primary font-medium truncate w-full group-hover:text-primary transition-colors">
                           {file.name}
                         </span>
                         
                         {!file.is_dir && downloading ? (
-                          <div className="w-full mt-2 h-1.5 bg-bg-base rounded-full overflow-hidden">
-                            <div className="h-full bg-accent transition-all duration-300" style={{ width: `${progress}%` }} />
+                          <div className="w-full mt-1.5 h-1 bg-bg-secondary rounded-full overflow-hidden">
+                            <div className="h-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
                           </div>
                         ) : !file.is_dir && (
-                          <span className="text-xs text-text-muted mt-1">{formatSize(file.size)}</span>
+                          <span className="text-[10px] text-text-muted mt-0.5">{formatSize(file.size)}</span>
                         )}
                       </button>
                     );
@@ -536,41 +652,47 @@ export default function FileManager() {
                       onClick={() => handleFileClick(file)}
                       onMouseEnter={(e) => handleMouseEnter(e, file)}
                       onMouseLeave={handleMouseLeave}
-                      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left transition-colors group cursor-pointer relative overflow-hidden ${isSelected ? 'bg-accent/10' : 'hover:bg-bg-surface'}`}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-left transition-colors group cursor-pointer relative overflow-hidden focus:outline-none focus:ring-1 focus:ring-accent/40",
+                        isSelected ? 'bg-primary/5' : 'hover:bg-bg-hover/80'
+                      )}
                     >
                       <div 
-                        className={`transition-opacity mr-1 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                        className={cn(
+                          "transition-opacity mr-0.5",
+                          isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                        )}
                         onClick={(e) => toggleSelection(e, file.name)}
                       >
-                        {isSelected ? <CheckSquare className="w-5 h-5 text-accent-light" /> : <Square className="w-5 h-5 text-text-muted" />}
+                        {isSelected ? <CheckSquare className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4 text-text-muted/65" />}
                       </div>
 
-                      {downloading && <div className="absolute inset-0 bg-accent/5 opacity-50" />}
+                      {downloading && <div className="absolute inset-0 bg-primary/5" />}
                       {draggingOutFile === file.name && (
-                        <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-20">
-                          <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                        <div className="absolute inset-0 bg-bg-surface/90 flex items-center justify-center z-20">
+                          <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                         </div>
                       )}
                       
                       {thumbnails[fullPath] ? (
-                        <img src={thumbnails[fullPath]} alt={file.name} className="w-5 h-5 object-cover rounded flex-shrink-0" />
+                        <img src={thumbnails[fullPath]} alt={file.name} className="w-4.5 h-4.5 object-cover rounded flex-shrink-0" />
                       ) : (
-                        <Icon className={`w-5 h-5 flex-shrink-0 ${color} ${downloading ? 'animate-pulse' : ''}`} />
+                        <Icon className={cn("w-4.5 h-4.5 flex-shrink-0", color, downloading && 'animate-pulse')} />
                       )}
                       
-                      <span className="flex-1 text-sm text-text-primary truncate font-medium group-hover:text-accent-light transition-colors relative z-10">
+                      <span className="flex-1 text-xs text-text-primary truncate font-medium group-hover:text-primary transition-colors relative z-10">
                         {file.name}
                       </span>
                       
                       {!file.is_dir && downloading ? (
                         <div className="flex items-center gap-2 flex-shrink-0 relative z-10">
-                          <span className="text-[11px] text-accent font-medium">{Math.round(progress)}%</span>
-                          <div className="w-16 h-1.5 bg-bg-base rounded-full overflow-hidden">
-                            <div className="h-full bg-accent transition-all duration-300" style={{ width: `${progress}%` }} />
+                          <span className="text-[10px] text-primary font-semibold">{Math.round(progress)}%</span>
+                          <div className="w-12 h-1 bg-bg-secondary rounded-full overflow-hidden">
+                            <div className="h-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
                           </div>
                         </div>
                       ) : !file.is_dir && (
-                        <span className="text-xs text-text-muted flex-shrink-0 relative z-10">
+                        <span className="text-[10px] text-text-muted flex-shrink-0 relative z-10">
                           {formatSize(file.size)}
                         </span>
                       )}
@@ -579,15 +701,18 @@ export default function FileManager() {
                 })}
 
                 {files.length === 0 && !isLoading && (
-                  <div className="col-span-full flex flex-col items-center justify-center py-20 opacity-50">
-                    <Search className="w-12 h-12 text-text-muted mb-4" />
-                    <p className="text-text-muted text-sm font-medium">This folder is empty.</p>
+                  <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
+                    <div className="w-12 h-12 rounded-lg bg-bg-secondary/30 border border-border flex items-center justify-center mb-3 text-text-muted">
+                      <FolderOpen className="w-6 h-6 text-text-muted/50" strokeWidth={1.5} />
+                    </div>
+                    <h3 className="text-xs font-semibold text-text-primary mb-1">Folder is empty</h3>
+                    <p className="text-[11px] text-text-muted max-w-xs">Drag and drop files to upload them to this folder.</p>
                   </div>
                 )}
               </div>
             )}
           </div>
-        </div>
+        </Card>
       </div>
     </div>
 
