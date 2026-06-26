@@ -102,7 +102,8 @@ npm run tauri build
 
 Features such as notification sync, clipboard sharing, SMS/call sync, and remote PC control require the companion application to be installed on your Android device.
 
-> **Note:** The Android companion application is currently under development and will be available soon. Screen mirroring and file transfer features can still be utilized via an ADB USB connection without the companion app.
+> [!NOTE]  
+> The Android companion application is currently under development and will be available soon. Screen mirroring and file transfer features can still be utilized via an ADB USB connection without the companion app.
 
 ---
 

@@ -8,87 +8,99 @@ import {
   Zap,
 } from 'lucide-react';
 import { useDeviceStore, type ActiveView } from '../stores/deviceStore';
-
-const navItems: { id: ActiveView; icon: typeof Smartphone; label: string }[] = [
-  { id: 'devices', icon: Smartphone, label: 'Devices' },
-  { id: 'mirror', icon: Monitor, label: 'Mirror' },
-  { id: 'files', icon: FolderOpen, label: 'Files' },
-  { id: 'notifications', icon: Bell, label: 'Alerts' },
-  { id: 'clipboard', icon: ClipboardCopy, label: 'Clipboard' },
-  { id: 'settings', icon: Settings, label: 'Settings' },
-];
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 export default function Sidebar() {
   const { activeView, setActiveView, connectionState } = useDeviceStore();
 
   const isConnected = connectionState === 'connected';
 
+  const renderNavItem = (id: ActiveView, Icon: typeof Smartphone, label: string) => {
+    const isActive = activeView === id;
+    return (
+      <Button
+        key={id}
+        variant={isActive ? "secondary" : "ghost"}
+        onClick={() => setActiveView(id)}
+        className={cn(
+          "w-full h-8.5 justify-start gap-2.5 px-2.5 rounded-lg cursor-pointer transition-all duration-150 text-[11px] font-semibold tracking-wide",
+          isActive
+            ? "bg-bg-hover text-text-primary shadow-2xs"
+            : "text-text-secondary hover:bg-bg-hover/60 hover:text-text-primary"
+        )}
+      >
+        <Icon
+          className={cn(
+            "w-4 h-4 transition-colors",
+            isActive ? "text-text-primary" : "text-text-muted"
+          )}
+          strokeWidth={1.8}
+        />
+        <span>{label}</span>
+      </Button>
+    );
+  };
+
   return (
-    <aside className="flex flex-col items-center w-[72px] h-screen bg-bg-secondary/80 backdrop-blur-xl border-r border-border py-4 relative z-10">
-      {/* Logo */}
-      <div className="flex items-center justify-center w-11 h-11 mb-6 rounded-xl bg-gradient-to-br from-accent to-accent-violet shadow-lg shadow-accent-glow/30">
-        <Zap className="w-5 h-5 text-white" strokeWidth={2.5} />
+    <aside className="flex flex-col w-56 h-screen bg-bg-secondary border-r border-border py-4 relative z-10 select-none shrink-0">
+      {/* Logo Header */}
+      <div className="flex items-center gap-2 px-4.5 mb-6">
+        <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-bg-surface border border-border text-text-primary shadow-2xs">
+          <Zap className="w-4 h-4 text-primary" strokeWidth={2.2} />
+        </div>
+        <span className="text-xs font-bold text-text-primary tracking-tight">Bifrost</span>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 flex flex-col items-center gap-1 w-full px-2">
-        {navItems.map(({ id, icon: Icon, label }) => {
-          const isActive = activeView === id;
-          return (
-            <button
-              key={id}
-              onClick={() => setActiveView(id)}
-              className={`
-                group relative flex flex-col items-center justify-center w-full py-2.5 rounded-xl
-                transition-all duration-200 ease-out cursor-pointer
-                ${isActive
-                  ? 'bg-accent/15 text-accent-light shadow-[0_0_20px_rgba(99,102,241,0.12)]'
-                  : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'
-                }
-              `}
-              title={label}
-            >
-              {/* Active indicator line */}
-              {isActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-accent rounded-r-full animate-fade-in" />
-              )}
-
-              <Icon
-                className={`w-[20px] h-[20px] transition-transform duration-200 group-hover:scale-110 ${
-                  isActive ? 'text-accent-light' : ''
-                }`}
-                strokeWidth={isActive ? 2.2 : 1.8}
-              />
-              <span
-                className={`text-[10px] mt-1 font-medium tracking-wide transition-colors duration-200 ${
-                  isActive ? 'text-accent-light' : 'text-text-muted group-hover:text-text-secondary'
-                }`}
-              >
-                {label}
-              </span>
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* Connection Status Dot */}
-      <div className="mt-auto pt-4 flex flex-col items-center gap-1.5">
-        <div className="relative">
-          <div
-            className={`w-2.5 h-2.5 rounded-full transition-colors duration-300 ${
-              isConnected
-                ? 'bg-success shadow-[0_0_8px_rgba(34,197,94,0.5)]'
-                : connectionState === 'disconnected'
-                  ? 'bg-text-muted'
-                  : 'bg-warning animate-pulse'
-            }`}
-          />
-          {isConnected && (
-            <div className="absolute inset-0 rounded-full bg-success/40 animate-ping" />
-          )}
+      {/* Navigation Sections */}
+      <div className="flex-1 flex flex-col gap-4.5 px-3">
+        {/* Section: Connections */}
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider px-2.5 mb-1.5">
+            Connections
+          </span>
+          {renderNavItem('devices', Smartphone, 'Devices')}
+          {renderNavItem('mirror', Monitor, 'Screen Mirror')}
         </div>
-        <span className="text-[9px] text-text-muted font-medium">
-          {isConnected ? 'Online' : 'Offline'}
+
+        {/* Section: Tools */}
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider px-2.5 mb-1.5">
+            Tools
+          </span>
+          {renderNavItem('files', FolderOpen, 'File Explorer')}
+          {renderNavItem('notifications', Bell, 'Notifications')}
+          {renderNavItem('clipboard', ClipboardCopy, 'Clipboard Sync')}
+        </div>
+
+        {/* Section: System */}
+        <div className="flex flex-col gap-0.5 mt-auto">
+          <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider px-2.5 mb-1.5">
+            System
+          </span>
+          {renderNavItem('settings', Settings, 'Settings')}
+        </div>
+      </div>
+
+      {/* Footer Connection status */}
+      <div className="px-3 pt-3 border-t border-border mt-4 flex items-center justify-between">
+        <div className="flex items-center gap-2 px-2.5 py-0.5">
+          <div
+            className={cn(
+              "w-1.5 h-1.5 rounded-full transition-colors duration-300",
+              isConnected
+                ? 'bg-success'
+                : connectionState === 'disconnected'
+                  ? 'bg-text-muted/50'
+                  : 'bg-warning animate-pulse'
+            )}
+          />
+          <span className="text-[10px] text-text-secondary font-semibold">
+            {isConnected ? 'Online' : connectionState === 'discovering' ? 'Scanning...' : 'Offline'}
+          </span>
+        </div>
+        <span className="text-[9px] text-text-muted/80 font-medium px-2.5">
+          v0.1.0
         </span>
       </div>
     </aside>

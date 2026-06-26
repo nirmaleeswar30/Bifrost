@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useDeviceStore } from '../stores/deviceStore';
 import {
   Settings as SettingsIcon,
   Wifi,
@@ -8,14 +9,21 @@ import {
   ClipboardCopy,
   Palette,
   Info,
-  ToggleLeft,
-  ToggleRight,
-  ChevronDown,
   ExternalLink,
   Heart,
   Zap,
   Shield,
 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface ToggleSwitchProps {
   enabled: boolean;
@@ -28,19 +36,13 @@ function ToggleSwitch({ enabled, onToggle, label, description }: ToggleSwitchPro
   return (
     <div className="flex items-center justify-between py-3">
       <div>
-        <span className="text-sm text-text-primary">{label}</span>
+        <span className="text-sm text-text-primary font-medium">{label}</span>
         {description && <p className="text-xs text-text-muted mt-0.5">{description}</p>}
       </div>
-      <button
-        onClick={onToggle}
-        className="cursor-pointer transition-colors duration-200"
-      >
-        {enabled ? (
-          <ToggleRight className="w-8 h-8 text-accent-light" />
-        ) : (
-          <ToggleLeft className="w-8 h-8 text-text-muted" />
-        )}
-      </button>
+      <Switch
+        checked={enabled}
+        onCheckedChange={onToggle}
+      />
     </div>
   );
 }
@@ -57,21 +59,21 @@ function SelectField({ label, value, options, onChange, description }: SelectFie
   return (
     <div className="flex items-center justify-between py-3">
       <div>
-        <span className="text-sm text-text-primary">{label}</span>
+        <span className="text-sm text-text-primary font-medium">{label}</span>
         {description && <p className="text-xs text-text-muted mt-0.5">{description}</p>}
       </div>
-      <div className="relative">
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="appearance-none pl-3 pr-8 py-1.5 rounded-lg bg-bg-surface border border-border text-xs text-text-primary cursor-pointer focus:outline-none focus:border-accent/40"
-        >
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="w-[180px] h-8 bg-bg-surface text-text-primary border-border focus:ring-1 focus:ring-accent/40 text-xs">
+          <SelectValue placeholder={label} />
+        </SelectTrigger>
+        <SelectContent className="bg-bg-surface border-border text-text-primary">
           {options.map((opt) => (
-            <option key={opt} value={opt}>{opt}</option>
+            <SelectItem key={opt} value={opt} className="hover:bg-bg-hover focus:bg-bg-hover focus:text-text-primary hover:text-text-primary cursor-pointer text-xs">
+              {opt}
+            </SelectItem>
           ))}
-        </select>
-        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
-      </div>
+        </SelectContent>
+      </Select>
     </div>
   );
 }
@@ -88,15 +90,15 @@ function TextField({ label, value, onChange, placeholder, description }: TextFie
   return (
     <div className="flex items-center justify-between py-3">
       <div>
-        <span className="text-sm text-text-primary">{label}</span>
+        <span className="text-sm text-text-primary font-medium">{label}</span>
         {description && <p className="text-xs text-text-muted mt-0.5">{description}</p>}
       </div>
-      <input
+      <Input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-48 px-3 py-1.5 rounded-lg bg-bg-surface border border-border text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent/40 focus:ring-1 focus:ring-accent/20 transition-all duration-200"
+        className="w-48 h-8 bg-bg-surface border-border text-xs text-text-primary focus:ring-1 focus:ring-accent/40"
       />
     </div>
   );
@@ -109,15 +111,15 @@ interface SettingsSectionProps {
   children: React.ReactNode;
 }
 
-function SettingsSection({ icon: Icon, title, iconColor = 'text-accent-light', children }: SettingsSectionProps) {
+function SettingsSection({ icon: Icon, title, iconColor = 'text-text-secondary', children }: SettingsSectionProps) {
   return (
-    <div className="glass gradient-border rounded-xl overflow-hidden">
-      <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-border bg-bg-surface/20">
+    <Card className="bg-bg-surface border-border overflow-hidden rounded-xl">
+      <CardHeader className="flex flex-row items-center gap-2.5 px-5 py-3 border-b border-border bg-bg-secondary/20 space-y-0">
         <Icon className={`w-4 h-4 ${iconColor}`} />
-        <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
-      </div>
-      <div className="px-5 divide-y divide-border/50">{children}</div>
-    </div>
+        <CardTitle className="text-sm font-semibold text-text-primary leading-none">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="px-5 py-0 divide-y divide-border">{children}</CardContent>
+    </Card>
   );
 }
 
@@ -144,12 +146,23 @@ export default function Settings() {
   const [clipSync, setClipSync] = useState(true);
   const [historyLimit, setHistoryLimit] = useState('50');
 
-  // Appearance
-  const [darkMode, setDarkMode] = useState(true);
-  const [accentColor, setAccentColor] = useState('Indigo');
+  // Appearance (Connected to global DeviceStore)
+  const theme = useDeviceStore((s) => s.theme);
+  const setTheme = useDeviceStore((s) => s.setTheme);
+  const accentColor = useDeviceStore((s) => s.accentColor);
+  const setAccentColor = useDeviceStore((s) => s.setAccentColor);
+
+  const darkMode = theme === 'dark';
+  const handleToggleDarkMode = () => {
+    setTheme(darkMode ? 'light' : 'dark');
+  };
+
+  const handleAccentChange = (val: string) => {
+    setAccentColor(val.toLowerCase() as any);
+  };
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 animate-fade-in">
+    <div className="flex-1 overflow-y-auto p-6 animate-fade-in bg-bg-primary">
       <div className="max-w-3xl mx-auto space-y-5">
         {/* Header */}
         <div className="mb-2">
@@ -184,7 +197,7 @@ export default function Settings() {
         </SettingsSection>
 
         {/* Mirroring */}
-        <SettingsSection icon={Monitor} title="Screen Mirroring" iconColor="text-accent-violet">
+        <SettingsSection icon={Monitor} title="Screen Mirroring">
           <SelectField
             label="Default Resolution"
             value={mirrorRes}
@@ -206,7 +219,7 @@ export default function Settings() {
         </SettingsSection>
 
         {/* File Transfers */}
-        <SettingsSection icon={FolderOpen} title="File Transfers" iconColor="text-emerald-400">
+        <SettingsSection icon={FolderOpen} title="File Transfers">
           <TextField
             label="Save Location"
             value={savePath}
@@ -223,7 +236,7 @@ export default function Settings() {
         </SettingsSection>
 
         {/* Notifications */}
-        <SettingsSection icon={Bell} title="Notifications" iconColor="text-amber-400">
+        <SettingsSection icon={Bell} title="Notifications">
           <ToggleSwitch
             label="Enable Notifications"
             description="Show phone notifications on desktop"
@@ -239,7 +252,7 @@ export default function Settings() {
         </SettingsSection>
 
         {/* Clipboard */}
-        <SettingsSection icon={ClipboardCopy} title="Clipboard" iconColor="text-blue-400">
+        <SettingsSection icon={ClipboardCopy} title="Clipboard">
           <ToggleSwitch
             label="Auto-sync Clipboard"
             description="Automatically sync clipboard between devices"
@@ -256,27 +269,27 @@ export default function Settings() {
         </SettingsSection>
 
         {/* Appearance */}
-        <SettingsSection icon={Palette} title="Appearance" iconColor="text-pink-400">
+        <SettingsSection icon={Palette} title="Appearance">
           <ToggleSwitch
             label="Dark Mode"
-            description="Use dark theme (recommended)"
+            description="Use dark theme"
             enabled={darkMode}
-            onToggle={() => setDarkMode(!darkMode)}
+            onToggle={handleToggleDarkMode}
           />
           <SelectField
             label="Accent Color"
-            value={accentColor}
+            value={accentColor.charAt(0).toUpperCase() + accentColor.slice(1)}
             options={['Indigo', 'Violet', 'Blue', 'Emerald', 'Rose']}
-            onChange={setAccentColor}
+            onChange={handleAccentChange}
           />
         </SettingsSection>
 
         {/* About */}
-        <SettingsSection icon={Info} title="About" iconColor="text-text-secondary">
+        <SettingsSection icon={Info} title="About">
           <div className="py-4">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-accent-violet flex items-center justify-center shadow-lg shadow-accent-glow/20">
-                <Zap className="w-5 h-5 text-white" strokeWidth={2.5} />
+              <div className="w-10 h-10 rounded-lg bg-bg-surface border border-border text-text-primary flex items-center justify-center shadow-xs">
+                <Zap className="w-5 h-5" strokeWidth={2.2} />
               </div>
               <div>
                 <h4 className="text-sm font-bold text-text-primary">Bifrost</h4>
@@ -293,13 +306,13 @@ export default function Settings() {
                 href="https://github.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-bg-surface border border-border text-xs text-text-secondary hover:text-text-primary hover:border-border-hover transition-all duration-200"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-bg-primary border border-border text-xs text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors duration-150 cursor-pointer focus:outline-none focus:ring-1 focus:ring-accent/40"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 GitHub
                 <ExternalLink className="w-3 h-3" />
               </a>
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-bg-surface border border-border text-xs text-text-muted">
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-bg-primary border border-border text-xs text-text-muted">
                 <Shield className="w-3.5 h-3.5" />
                 MIT License
               </span>
@@ -312,5 +325,4 @@ export default function Settings() {
         </SettingsSection>
       </div>
     </div>
-  );
-}
+  );}

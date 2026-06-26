@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import JMuxer from 'jmuxer';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { X } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
+import { Button } from '@/components/ui/button';
 
 export default function MirrorWindow() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -74,11 +75,11 @@ export default function MirrorWindow() {
   };
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-black group" data-tauri-drag-region>
+    <div className="relative w-screen h-screen overflow-hidden bg-black group select-none" data-tauri-drag-region>
       {isConnecting && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-white z-10 pointer-events-none">
-          <div className="w-8 h-8 border-4 border-accent-blue border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="font-medium">Connecting to device stream...</p>
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="font-semibold text-xs text-white/90">Connecting to device stream...</p>
         </div>
       )}
       <video
@@ -87,18 +88,20 @@ export default function MirrorWindow() {
         autoPlay
         muted
         playsInline
-        className="w-full h-full object-contain rounded-2xl bg-black pointer-events-none"
+        className="w-full h-full object-contain bg-black pointer-events-none"
       />
       
-      {/* Hidden Control Overlay */}
+      {/* Control Overlay */}
       <div className="absolute top-0 left-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity flex justify-end items-start pointer-events-none" data-tauri-drag-region>
-        <button
+        <Button
+          variant="ghost"
+          size="icon-sm"
           onClick={closeWindow}
-          className="p-2 bg-black/50 hover:bg-black/80 text-white rounded-full backdrop-blur-sm transition-colors pointer-events-auto"
+          className="bg-black/60 hover:bg-black/85 hover:text-white text-white rounded-full transition-colors pointer-events-auto cursor-pointer border border-white/5"
           title="Close Mirror"
         >
-          <X className="w-5 h-5" />
-        </button>
+          <X className="w-4 h-4" />
+        </Button>
       </div>
     </div>
   );
