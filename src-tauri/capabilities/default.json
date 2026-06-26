@@ -7,6 +7,11 @@
     "core:default",
     "opener:default",
     "core:window:allow-set-title",
+    "core:window:allow-create",
+    "core:window:allow-close",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
     "drag:default"
   ]
 }

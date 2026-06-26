@@ -34,11 +34,15 @@ function Dashboard() {
     const unlistenConnected = listen('device-connected', (event: any) => {
       console.log("[Bifrost React] Received device-connected event:", event);
       setConnectionState('connected');
+      
+      const store = useDeviceStore.getState();
+      const currentId = store.connectedDevice?.id;
+      
       setConnectedDevice({
-        id: event.payload?.device_id || 'unknown',
-        name: 'Android Device',
-        model: 'Paired Device',
-        connectionType: 'wifi',
+        id: currentId || event.payload?.device_id || 'unknown',
+        name: store.connectedDevice?.name || event.payload?.name || 'Android Device',
+        model: store.connectedDevice?.model || event.payload?.model || 'Paired Device',
+        connectionType: store.connectedDevice?.connectionType || 'usb',
         isConnected: true,
       });
     });

@@ -31,6 +31,8 @@ struct AppState {
     ws_sender: Mutex<Option<tokio::sync::broadcast::Sender<String>>>,
     clipboard_manager: Mutex<Option<sync::ClipboardManager>>,
     input_controller: Mutex<Option<mirror::control::InputController>>,
+    ws_port: Mutex<u16>,
+    auth_token: Mutex<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -72,6 +74,8 @@ async fn start_services(app: AppHandle, state: State<'_, AppState>) -> Result<()
     *state.pairing_manager.lock().unwrap() = Some(pairing_mgr);
     *state.mdns.lock().unwrap() = Some(mdns);
     *state.ws_sender.lock().unwrap() = Some(ws.get_sender());
+    *state.ws_port.lock().unwrap() = port;
+    *state.auth_token.lock().unwrap() = persistent_token.clone();
     
     if let Ok(cb) = sync::ClipboardManager::new() {
         *state.clipboard_manager.lock().unwrap() = Some(cb);
@@ -96,7 +100,7 @@ async fn start_services(app: AppHandle, state: State<'_, AppState>) -> Result<()
 }
 
 #[tauri::command]
-async fn start_mirroring(device_id: String, state: State<'_, AppState>) -> Result<(), String> {
+async fn start_mirroring(device_id: String, app_handle: tauri::AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     let mut scrcpy = state.scrcpy_manager.lock().await;
     let sender = {
         let vs = state.video_server.lock().unwrap();
@@ -107,7 +111,7 @@ async fn start_mirroring(device_id: String, state: State<'_, AppState>) -> Resul
         }
     };
 
-    scrcpy.start_mirroring(&device_id, sender).await.map_err(|e| e.to_string())?;
+    scrcpy.start_mirroring(&device_id, sender, app_handle).await.map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -142,12 +146,21 @@ pub mod commands {
     use super::*;
 
     #[tauri::command]
-    pub fn list_devices() -> Result<Vec<Device>, String> {
-        let output = std::process::Command::new("adb")
+    pub async fn list_devices() -> Result<Vec<Device>, String> {
+        let child = tokio::process::Command::new("adb")
             .arg("devices")
             .arg("-l")
-            .output()
-            .map_err(|e| format!("Failed to run adb: {}", e))?;
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to spawn adb: {}", e))?;
+
+        let output = match tokio::time::timeout(std::time::Duration::from_secs(5), child.wait_with_output()).await {
+            Ok(Ok(out)) => out,
+            Ok(Err(e)) => return Err(format!("Failed to read adb output: {}", e)),
+            Err(_) => return Err("ADB command timed out after 5 seconds".to_string()),
+        };
             
         let output_str = String::from_utf8_lossy(&output.stdout);
         let mut devices = Vec::new();
@@ -195,8 +208,50 @@ fn get_connection_state() -> ConnectionState {
 }
 
 #[tauri::command]
-fn connect_device(device_id: String) -> Result<(), String> {
-    let _ = device_id;
+async fn connect_device(device_id: String, app_handle: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let port = *state.ws_port.lock().unwrap();
+    let token = state.auth_token.lock().unwrap().clone();
+
+    // Step 1: Set up adb reverse so the phone can reach our WS server via localhost
+    let reverse_result = tokio::process::Command::new("adb")
+        .args(["-s", &device_id, "reverse", &format!("tcp:{}", port), &format!("tcp:{}", port)])
+        .stdin(std::process::Stdio::null())
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run adb reverse: {}", e))?;
+
+    if !reverse_result.status.success() {
+        let err_msg = String::from_utf8_lossy(&reverse_result.stderr);
+        error!("adb reverse failed: {}", err_msg);
+        return Err(format!("ADB Device not found or offline. Please click 'Scan for Devices' and connect to the correct physical device. Error: {}", err_msg));
+    }
+
+    // Step 2: Trigger Android service via intent
+    let start_result = tokio::process::Command::new("adb")
+        .args([
+            "-s", &device_id,
+            "shell", "am", "start-foreground-service",
+            "-n", "com.example.bifrostcompanion/.ConnectionService",
+            "-a", "com.example.bifrostcompanion.START_CONNECTION",
+            "--es", "ip", "127.0.0.1",
+            "--ei", "port", &port.to_string(),
+            "--es", "token", &token,
+        ])
+        .stdin(std::process::Stdio::null())
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run adb shell: {}", e))?;
+
+    if !start_result.status.success() {
+        let err_msg = String::from_utf8_lossy(&start_result.stderr);
+        error!("Failed to start android service: {}", err_msg);
+        return Err(format!("Failed to start companion app on phone. Error: {}", err_msg));
+    }
+
+    app_handle.emit("device-connected", serde_json::json!({
+        "device_id": device_id
+    })).unwrap();
+
     Ok(())
 }
 
@@ -385,6 +440,8 @@ pub fn run() {
             ws_sender: Mutex::new(None),
             clipboard_manager: Mutex::new(None),
             input_controller: Mutex::new(None),
+            ws_port: Mutex::new(14210),
+            auth_token: Mutex::new(String::new()),
         })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_drag::init())

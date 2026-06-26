@@ -21,7 +21,7 @@ import { useEffect } from 'react';
 export default function DevicePanel() {
   const {
     devices,
-   
+    connectionState,
     setDevices,
     setConnectedDevice,
     setConnectionState,
@@ -39,32 +39,16 @@ export default function DevicePanel() {
     };
 
     fetchSaved();
-
-    const unlistenConnected = listen('device-connected', (_event: any) => {
-      // Refresh saved devices from DB whenever a new device connects
+    
+    // Listen for device-connected just to refresh saved devices
+    const unlistenConnected = listen('device-connected', () => {
       fetchSaved();
-      
-      // When a phone connects via WebSocket, mark the first discovered device as connected
-      // or create a "Paired Device" entry
-      if (devices.length > 0) {
-        const updated = devices.map((d, i) => i === 0 ? { ...d, isConnected: true } : d);
-        setDevices(updated);
-        setConnectedDevice(updated[0]);
-      }
-      setConnectionState('connected');
-    });
-
-    const unlistenDisconnected = listen('device-disconnected', () => {
-      setDevices(devices.map(d => ({ ...d, isConnected: false })));
-      setConnectedDevice(null);
-      setConnectionState('disconnected');
     });
 
     return () => {
       unlistenConnected.then(fn => fn());
-      unlistenDisconnected.then(fn => fn());
     };
-  }, [devices, setDevices, setConnectedDevice, setConnectionState]);
+  }, []);
 
   const handleGenerateQR = async () => {
     try {
@@ -101,15 +85,18 @@ export default function DevicePanel() {
     }
   };
 
-  const handleConnect = (device: Device) => {
+  const handleConnect = async (device: Device) => {
     setConnectionState('connecting');
-    // Mark the device as connected in the UI
-    const connected = { ...device, isConnected: true };
-    setConnectedDevice(connected);
-    setConnectionState('connected');
-    setDevices(
-      devices.map((d) => (d.id === device.id ? connected : d))
-    );
+    setConnectedDevice(device);
+    try {
+      await invoke('connect_device', { deviceId: device.id });
+      // The actual 'connected' state will be set by the device-connected event listener
+      // when the phone's WebSocket connects. We just wait.
+    } catch (e: any) {
+      console.error("Failed to connect device via USB:", e);
+      setConnectionState('disconnected');
+      setConnectedDevice(null);
+    }
   };
 
   const handleDisconnect = () => {

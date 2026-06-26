@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Monitor,
   Camera,
@@ -13,15 +13,28 @@ import {
 } from 'lucide-react';
 import { useDeviceStore } from '../stores/deviceStore';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 
 export default function MirrorView() {
-  const { connectionState } = useDeviceStore();
+  const { connectionState, connectedDevice } = useDeviceStore();
   const isConnected = connectionState === 'connected';
   const [isMirroring, setIsMirroring] = useState(false);
   const [resolution, setResolution] = useState('1080p');
   const [showResDropdown, setShowResDropdown] = useState(false);
 
   const resolutions = ['720p', '1080p', '1440p', '4K'];
+
+  useEffect(() => {
+    let unlisten: () => void;
+    listen('mirroring-stopped', () => {
+      setIsMirroring(false);
+      invoke('stop_mirroring').catch(console.error);
+    }).then(f => unlisten = f);
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
 
   if (!isConnected) {
     return (
@@ -42,10 +55,10 @@ export default function MirrorView() {
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden animate-fade-in">
+    <div className="flex-1 flex flex-col overflow-hidden animate-fade-in relative">
       {/* Mirror Display Area */}
-      <div className="flex-1 flex items-center justify-center p-6">
-        <div className="relative">
+      <div className="flex-1 flex items-center justify-center p-6 overflow-y-auto min-h-0">
+        <div className="relative shrink-0">
           {/* Phone frame */}
           <div className="relative w-[300px] h-[620px] rounded-[2.5rem] bg-bg-primary border-2 border-border overflow-hidden shadow-2xl shadow-black/40">
             {/* Notch */}
@@ -83,16 +96,35 @@ export default function MirrorView() {
       </div>
 
       {/* Control Bar */}
-      <div className="glass border-t border-border px-6 py-3">
+      <div className="glass border-t border-border px-6 py-3 shrink-0">
         <div className="flex items-center justify-between max-w-3xl mx-auto">
           {/* Left: Main controls */}
           <div className="flex items-center gap-3">
             <button
-              onClick={() => {
-                if (!isMirroring) {
-                  new WebviewWindow('mirror', { url: '/#/mirror-window', title: 'Bifrost Mirror', width: 400, height: 800, decorations: false, alwaysOnTop: true, transparent: true });
-                  setIsMirroring(true);
+              onClick={async () => {
+                if (!isMirroring && connectedDevice) {
+                  try {
+                    let win = await WebviewWindow.getByLabel('mirror');
+                    if (!win) {
+                      win = new WebviewWindow('mirror', { url: '/#/mirror-window', title: 'Bifrost Mirror', width: 400, height: 800, decorations: false, alwaysOnTop: true });
+                    }
+                    await win.show();
+                    await win.setFocus();
+                    setIsMirroring(true);
+                    
+                    // Give the window 1.5s to mount and connect its WebSocket
+                    setTimeout(async () => {
+                      try {
+                        await invoke('start_mirroring', { deviceId: connectedDevice.id });
+                      } catch (e) {
+                        console.error("Failed to start mirroring:", e);
+                      }
+                    }, 1500);
+                  } catch (e) {
+                    console.error("Failed to start mirroring:", e);
+                  }
                 } else {
+                  await invoke('stop_mirroring').catch(console.error);
                   setIsMirroring(false);
                 }
               }}

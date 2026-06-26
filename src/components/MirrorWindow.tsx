@@ -2,10 +2,14 @@ import { useEffect, useRef } from 'react';
 import JMuxer from 'jmuxer';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { X } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
+import { emit } from '@tauri-apps/api/event';
 
 export default function MirrorWindow() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const jmuxerRef = useRef<any>(null);
+
+  const [isConnecting, setIsConnecting] = useState(true);
 
   useEffect(() => {
     if (!videoRef.current) return;
@@ -13,7 +17,7 @@ export default function MirrorWindow() {
     jmuxerRef.current = new JMuxer({
       node: videoRef.current,
       mode: 'video',
-      flushingTime: 0,
+      flushingTime: 10,
       fps: 60,
       debug: false,
     });
@@ -26,6 +30,9 @@ export default function MirrorWindow() {
     };
 
     ws.onmessage = (event) => {
+      if (isConnecting) {
+        setIsConnecting(false);
+      }
       if (jmuxerRef.current && event.data) {
         jmuxerRef.current.feed({
           video: new Uint8Array(event.data)
@@ -33,7 +40,21 @@ export default function MirrorWindow() {
       }
     };
 
+    let unlisten: () => void;
+    getCurrentWindow().onCloseRequested(async (event) => {
+      // Prevent default close (destroy)
+      event.preventDefault();
+      try {
+        await invoke('stop_mirroring').catch(console.error);
+        await emit('mirroring-stopped');
+        await getCurrentWindow().hide();
+      } catch (err) {
+        console.error('Failed to handle close:', err);
+      }
+    }).then(f => unlisten = f);
+
     return () => {
+      if (unlisten) unlisten();
       ws.close();
       if (jmuxerRef.current) {
         jmuxerRef.current.destroy();
@@ -43,20 +64,29 @@ export default function MirrorWindow() {
 
   const closeWindow = async () => {
     try {
+      await invoke('stop_mirroring').catch(console.error);
+      await emit('mirroring-stopped');
       const win = getCurrentWindow();
-      await win.close();
+      await win.hide();
     } catch (err) {
-      console.error("Failed to close window:", err);
+      console.error("Failed to hide window:", err);
     }
   };
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-black group" data-tauri-drag-region>
+      {isConnecting && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-white z-10 pointer-events-none">
+          <div className="w-8 h-8 border-4 border-accent-blue border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="font-medium">Connecting to device stream...</p>
+        </div>
+      )}
       <video
         ref={videoRef}
         id="player"
         autoPlay
         muted
+        playsInline
         className="w-full h-full object-contain rounded-2xl bg-black pointer-events-none"
       />
       

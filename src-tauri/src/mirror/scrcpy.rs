@@ -32,15 +32,24 @@ impl ScrcpyManager {
         &mut self,
         device_id: &str,
         sender: broadcast::Sender<Bytes>,
+        app_handle: tauri::AppHandle,
     ) -> Result<(), MirrorError> {
+        use tauri::Manager;
         let adb = AdbClient::new(device_id.to_string());
 
         // 1. Push scrcpy-server.jar
-        // Assuming we are running from src-tauri during dev, or resources folder in prod
-        // A robust implementation would use tauri::AppHandle to resolve the path
-        let server_path = "resources/scrcpy-server.jar";
-        info!("Pushing scrcpy-server to device...");
-        adb.push_file(server_path, "/data/local/tmp/scrcpy-server.jar")
+        // Use AppHandle to dynamically resolve the resource directory path
+        let server_path = app_handle
+            .path()
+            .resolve("resources/scrcpy-server.jar", tauri::path::BaseDirectory::Resource)
+            .map_err(|e| MirrorError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, e.to_string())))?;
+        
+        let server_path_str = server_path.to_str().ok_or_else(|| {
+            MirrorError::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid path string"))
+        })?;
+
+        info!("Pushing scrcpy-server from {:?} to device...", server_path_str);
+        adb.push_file(server_path_str, "/data/local/tmp/scrcpy-server.jar")
             .map_err(|e| MirrorError::Adb(e.to_string()))?;
 
         // 2. Forward TCP port
@@ -88,6 +97,7 @@ impl ScrcpyManager {
 
         // 6. Read video packets and broadcast
         tokio::task::spawn_blocking(move || {
+            let mut frame_count = 0;
             loop {
                 // Header: 8 bytes PTS + 4 bytes Packet Size
                 let mut header = [0u8; 12];
@@ -109,6 +119,11 @@ impl ScrcpyManager {
                 let bytes = Bytes::from(packet);
                 if sender.send(bytes).is_err() {
                     // No clients connected, ignore
+                } else {
+                    frame_count += 1;
+                    if frame_count % 60 == 0 {
+                        println!("Broadcasted {} frames", frame_count);
+                    }
                 }
             }
         });

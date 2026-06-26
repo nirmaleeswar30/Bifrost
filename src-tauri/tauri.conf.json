@@ -20,6 +20,17 @@
         "decorations": true,
         "resizable": true,
         "center": true
+      },
+      {
+        "label": "mirror",
+        "title": "Bifrost Mirror",
+        "url": "/#/mirror-window",
+        "width": 400,
+        "height": 800,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "visible": false,
+        "transparent": false
       }
     ],
     "security": {
