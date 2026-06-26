@@ -142,6 +142,238 @@ fn get_saved_devices(state: State<'_, AppState>) -> Result<Vec<DeviceProfile>, S
     }
 }
 
+#[tauri::command]
+fn forget_device(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    let db = state.db.lock().unwrap();
+    if let Some(db) = db.as_ref() {
+        db.delete_device(&id).map_err(|e| e.to_string())
+    } else {
+        Err("Database not initialized".into())
+    }
+}
+
+#[derive(serde::Serialize)]
+struct DeviceStorage {
+    used: u64,
+    total: u64,
+}
+
+#[derive(serde::Serialize)]
+struct DashboardDevice {
+    id: String,
+    name: String,
+    model: String,
+    battery: Option<i32>,
+    charging: bool,
+    storage: Option<DeviceStorage>,
+    wallpaper: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+struct DashboardOverview {
+    android: Option<DashboardDevice>,
+    linux: DashboardDevice,
+}
+
+fn get_linux_battery() -> Option<(i32, bool)> {
+    let capacity_path = std::path::Path::new("/sys/class/power_supply/BAT0/capacity");
+    let status_path = std::path::Path::new("/sys/class/power_supply/BAT0/status");
+    if capacity_path.exists() {
+        let capacity = std::fs::read_to_string(capacity_path).ok()?
+            .trim().parse::<i32>().ok()?;
+        let status = std::fs::read_to_string(status_path).ok()?;
+        let charging = status.trim().to_lowercase() == "charging";
+        Some((capacity, charging))
+    } else {
+        let capacity_path = std::path::Path::new("/sys/class/power_supply/BAT1/capacity");
+        let status_path = std::path::Path::new("/sys/class/power_supply/BAT1/status");
+        if capacity_path.exists() {
+            let capacity = std::fs::read_to_string(capacity_path).ok()?
+                .trim().parse::<i32>().ok()?;
+            let status = std::fs::read_to_string(status_path).ok()?;
+            let charging = status.trim().to_lowercase() == "charging";
+            Some((capacity, charging))
+        } else {
+            None
+        }
+    }
+}
+
+fn get_linux_storage() -> Option<(u64, u64)> {
+    let output = std::process::Command::new("df")
+        .args(&["-B1", "/"])
+        .output()
+        .ok()?;
+    let stdout = String::from_utf8(output.stdout).ok()?;
+    let lines: Vec<&str> = stdout.lines().collect();
+    if lines.len() >= 2 {
+        let parts: Vec<&str> = lines[1].split_whitespace().collect();
+        if parts.len() >= 4 {
+            let total = parts[1].parse::<u64>().ok()?;
+            let used = parts[2].parse::<u64>().ok()?;
+            return Some((used, total));
+        }
+    }
+    None
+}
+
+fn get_linux_os_name() -> Option<String> {
+    let content = std::fs::read_to_string("/etc/os-release").ok()?;
+    for line in content.lines() {
+        if line.starts_with("PRETTY_NAME=") {
+            let name = line.split('=').nth(1)?.trim_matches('"');
+            return Some(name.to_string());
+        }
+    }
+    None
+}
+
+fn get_linux_hostname() -> String {
+    hostname::get()
+        .map(|h| h.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| "Linux PC".to_string())
+}
+
+fn get_gnome_wallpaper_path() -> Option<std::path::PathBuf> {
+    for key in &["picture-uri-dark", "picture-uri"] {
+        if let Ok(output) = std::process::Command::new("gsettings")
+            .args(&["get", "org.gnome.desktop.background", key])
+            .output()
+        {
+            let uri = String::from_utf8(output.stdout).unwrap_or_default();
+            let uri = uri.trim().trim_matches('\'');
+            if uri.is_empty() || uri == "''" || uri == "picture-uri" {
+                continue;
+            }
+            let path_str = uri.strip_prefix("file://").unwrap_or(uri);
+            let path = std::path::PathBuf::from(path_str);
+            if path.exists() {
+                return Some(path);
+            }
+        }
+    }
+    None
+}
+
+fn resize_and_encode_image(path: &std::path::Path) -> Option<String> {
+    let img = image::open(path).ok()?;
+    let resized = img.resize(240, 160, image::imageops::FilterType::Triangle);
+    let mut buffer = std::io::Cursor::new(Vec::new());
+    resized.write_to(&mut buffer, image::ImageFormat::Jpeg).ok()?;
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(buffer.get_ref());
+    Some(format!("data:image/jpeg;base64,{}", b64))
+}
+
+async fn run_adb_shell(device_id: &str, args: &[&str]) -> Option<String> {
+    let output = tokio::process::Command::new("adb")
+        .args(&["-s", device_id, "shell"])
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .await
+        .ok()?;
+    if output.status.success() {
+        Some(String::from_utf8_lossy(&output.stdout).into_owned())
+    } else {
+        None
+    }
+}
+
+async fn get_android_battery(device_id: &str) -> Option<(i32, bool)> {
+    let stdout = run_adb_shell(device_id, &["dumpsys", "battery"]).await?;
+    let mut level = None;
+    let mut charging = false;
+    for line in stdout.lines() {
+        let line = line.trim();
+        if line.starts_with("level:") {
+            if let Some(val_str) = line.split(':').nth(1) {
+                level = val_str.trim().parse::<i32>().ok();
+            }
+        } else if line.starts_with("USB powered:") || line.starts_with("AC powered:") || line.starts_with("Wireless powered:") {
+            if let Some(val_str) = line.split(':').nth(1) {
+                if val_str.trim() == "true" {
+                    charging = true;
+                }
+            }
+        }
+    }
+    level.map(|l| (l, charging))
+}
+
+async fn get_android_storage(device_id: &str) -> Option<(u64, u64)> {
+    let stdout = run_adb_shell(device_id, &["df", "/sdcard"]).await?;
+    let lines: Vec<&str> = stdout.lines().collect();
+    if lines.len() >= 2 {
+        let parts: Vec<&str> = lines[1].split_whitespace().collect();
+        if parts.len() >= 4 {
+            let total_kb = parts[1].parse::<u64>().ok()?;
+            let used_kb = parts[2].parse::<u64>().ok()?;
+            return Some((used_kb * 1024, total_kb * 1024));
+        }
+    }
+    None
+}
+
+#[tauri::command]
+async fn get_dashboard_overview(app_handle: AppHandle, _state: State<'_, AppState>) -> Result<DashboardOverview, String> {
+    let linux_hostname = get_linux_hostname();
+    let linux_os = get_linux_os_name().unwrap_or_else(|| "Linux Desktop".to_string());
+    let (linux_bat, linux_charging) = get_linux_battery().map(|(l, c)| (Some(l), c)).unwrap_or((None, false));
+    let linux_storage = get_linux_storage().map(|(u, t)| DeviceStorage { used: u, total: t });
+    let linux_wallpaper = get_gnome_wallpaper_path().and_then(|p| resize_and_encode_image(&p));
+
+    let linux_device = DashboardDevice {
+        id: "linux-local".to_string(),
+        name: linux_hostname,
+        model: linux_os,
+        battery: linux_bat,
+        charging: linux_charging,
+        storage: linux_storage,
+        wallpaper: linux_wallpaper,
+    };
+
+    let adb_devices = commands::list_devices().await.unwrap_or_default();
+    let android_device = if let Some(adb_dev) = adb_devices.first() {
+        let battery = get_android_battery(&adb_dev.id).await;
+        let storage = get_android_storage(&adb_dev.id).await.map(|(u, t)| DeviceStorage { used: u, total: t });
+        
+        let android_wallpaper = if let Some(app_dir) = app_handle.path().app_data_dir().ok() {
+            let wp_path = app_dir.join("android_wallpaper.jpg");
+            if wp_path.exists() {
+                if let Ok(bytes) = std::fs::read(&wp_path) {
+                    use base64::Engine;
+                    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+                    Some(format!("data:image/jpeg;base64,{}", b64))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        Some(DashboardDevice {
+            id: adb_dev.id.clone(),
+            name: adb_dev.name.clone(),
+            model: adb_dev.model.clone(),
+            battery: battery.map(|(l, _)| l),
+            charging: battery.map(|(_, c)| c).unwrap_or(false),
+            storage,
+            wallpaper: android_wallpaper,
+        })
+    } else {
+        None
+    };
+
+    Ok(DashboardOverview {
+        android: android_device,
+        linux: linux_device,
+    })
+}
+
 pub mod commands {
     use super::*;
 
@@ -459,6 +691,8 @@ pub fn run() {
             request_thumbnail,
             get_qr_code,
             get_saved_devices,
+            forget_device,
+            get_dashboard_overview,
             list_devices,
             get_connection_state,
             connect_device,

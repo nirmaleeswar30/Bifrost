@@ -137,6 +137,7 @@ class ConnectionService : Service() {
                     .apply()
                 
                 updateNotification("Connected to Bifrost Desktop")
+                sendWallpaper(webSocket)
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
@@ -414,8 +415,38 @@ class ConnectionService : Service() {
         manager.notify(1, notification)
     }
 
+    private fun sendWallpaper(webSocket: WebSocket) {
+        try {
+            val wallpaperManager = android.app.WallpaperManager.getInstance(this)
+            val drawable = wallpaperManager.drawable
+            if (drawable != null) {
+                val bitmap = (drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                if (bitmap != null) {
+                    val width = bitmap.width
+                    val height = bitmap.height
+                    val scale = Math.min(320f / width, 240f / height)
+                    val matrix = android.graphics.Matrix().apply { postScale(scale, scale) }
+                    val resized = android.graphics.Bitmap.createBitmap(bitmap, 0, 0, width, height, matrix, true)
+                    
+                    val stream = java.io.ByteArrayOutputStream()
+                    resized.compress(android.graphics.Bitmap.CompressFormat.JPEG, 75, stream)
+                    val bytes = stream.toByteArray()
+                    val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                    
+                    val message = JSONObject().apply {
+                        put("type", "wallpaper_update")
+                        put("data", b64)
+                    }.toString()
+                    webSocket.send(message)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("BifrostWS", "Failed to send wallpaper: " + e.message)
+        }
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
-    
+
     override fun onDestroy() {
         super.onDestroy()
         stopConnection()

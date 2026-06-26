@@ -20,75 +20,79 @@ const connectionStateLabels: Record<string, { label: string; color: string; dotC
 };
 
 export default function TopBar() {
-  const { connectedDevice, connectionState } = useDeviceStore();
+  const { connectedDevice, connectionState, activeView } = useDeviceStore();
   const stateInfo = connectionStateLabels[connectionState];
 
   return (
     <header className="flex items-center justify-between h-14 px-5 bg-bg-secondary border-b border-border select-none shrink-0">
       {/* Left: Device info */}
       <div className="flex items-center gap-4">
-        {/* Connection state badge */}
-        <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-bg-surface border border-border">
-          <span className={cn(
-            "w-2 h-2 rounded-full",
-            stateInfo.dotColor,
-            connectionState !== 'disconnected' && connectionState !== 'connected' ? 'animate-pulse' : ''
-          )} />
-          <span className={cn("text-xs font-semibold", stateInfo.color)}>
-            {stateInfo.label}
-          </span>
-        </div>
-
-        {/* Device info */}
-        {connectedDevice && (
-          <div className="flex items-center gap-3 animate-fade-in">
-            <div className="w-px h-5 bg-border" />
-
-            {/* Connection type icon */}
-            <div className="flex items-center gap-1.5 text-text-secondary">
-              {connectedDevice.connectionType === 'wifi' ? (
-                <Wifi className="w-3.5 h-3.5" />
-              ) : (
-                <Usb className="w-3.5 h-3.5" />
-              )}
-              <span className="text-[10px] font-semibold uppercase tracking-wider">
-                {connectedDevice.connectionType}
+        {activeView !== 'overview' && (
+          <>
+            {/* Connection state badge */}
+            <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-bg-surface border border-border">
+              <span className={cn(
+                "w-2 h-2 rounded-full",
+                stateInfo.dotColor,
+                connectionState !== 'disconnected' && connectionState !== 'connected' ? 'animate-pulse' : ''
+              )} />
+              <span className={cn("text-xs font-semibold", stateInfo.color)}>
+                {stateInfo.label}
               </span>
             </div>
 
-            <div className="w-px h-5 bg-border" />
-
-            {/* Device name & model */}
-            <div className="flex flex-col">
-              <span className="text-xs font-bold text-text-primary leading-tight">
-                {connectedDevice.name}
-              </span>
-              <span className="text-[10px] text-text-muted leading-tight mt-0.5">
-                {connectedDevice.model}
-              </span>
-            </div>
-
-            {/* Battery */}
-            {connectedDevice.batteryLevel !== undefined && (
-              <>
+            {/* Device info */}
+            {connectedDevice && (
+              <div className="flex items-center gap-3 animate-fade-in">
                 <div className="w-px h-5 bg-border" />
-                <div className="flex items-center gap-1.5">
-                  {connectedDevice.batteryLevel > 20 ? (
-                    <Battery className={cn(
-                      "w-3.5 h-3.5",
-                      connectedDevice.batteryLevel > 60 ? 'text-success' :
-                      connectedDevice.batteryLevel > 20 ? 'text-warning' : 'text-danger'
-                    )} />
+
+                {/* Connection type icon */}
+                <div className="flex items-center gap-1.5 text-text-secondary">
+                  {connectedDevice.connectionType === 'wifi' ? (
+                    <Wifi className="w-3.5 h-3.5" />
                   ) : (
-                    <BatteryCharging className="w-3.5 h-3.5 text-danger" />
+                    <Usb className="w-3.5 h-3.5" />
                   )}
-                  <span className="text-[11px] font-medium text-text-secondary">
-                    {connectedDevice.batteryLevel}%
+                  <span className="text-[10px] font-semibold uppercase tracking-wider">
+                    {connectedDevice.connectionType}
                   </span>
                 </div>
-              </>
+
+                <div className="w-px h-5 bg-border" />
+
+                {/* Device name & model */}
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-text-primary leading-tight">
+                    {connectedDevice.name}
+                  </span>
+                  <span className="text-[10px] text-text-muted leading-tight mt-0.5">
+                    {connectedDevice.model}
+                  </span>
+                </div>
+
+                {/* Battery */}
+                {connectedDevice.batteryLevel !== undefined && (
+                  <>
+                    <div className="w-px h-5 bg-border" />
+                    <div className="flex items-center gap-1.5">
+                      {connectedDevice.batteryLevel > 20 ? (
+                        <Battery className={cn(
+                          "w-3.5 h-3.5",
+                          connectedDevice.batteryLevel > 60 ? 'text-success' :
+                          connectedDevice.batteryLevel > 20 ? 'text-warning' : 'text-danger'
+                        )} />
+                      ) : (
+                        <BatteryCharging className="w-3.5 h-3.5 text-danger" />
+                      )}
+                      <span className="text-[11px] font-medium text-text-secondary">
+                        {connectedDevice.batteryLevel}%
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
             )}
-          </div>
+          </>
         )}
       </div>
 

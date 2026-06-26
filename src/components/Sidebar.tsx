@@ -6,6 +6,7 @@ import {
   ClipboardCopy,
   Settings,
   Zap,
+  LayoutDashboard,
 } from 'lucide-react';
 import { useDeviceStore, type ActiveView } from '../stores/deviceStore';
 import { Button } from '@/components/ui/button';
@@ -54,6 +55,14 @@ export default function Sidebar() {
 
       {/* Navigation Sections */}
       <div className="flex-1 flex flex-col gap-4.5 px-3">
+        {/* Section: General */}
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider px-2.5 mb-1.5">
+            General
+          </span>
+          {renderNavItem('overview', LayoutDashboard, 'Overview')}
+        </div>
+
         {/* Section: Connections */}
         <div className="flex flex-col gap-0.5">
           <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider px-2.5 mb-1.5">

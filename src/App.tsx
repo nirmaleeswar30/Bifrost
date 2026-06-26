@@ -1,5 +1,6 @@
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
+import Overview from './components/Overview';
 import DevicePanel from './components/DevicePanel';
 import MirrorView from './components/MirrorView';
 import FileManager from './components/FileManager';
@@ -14,6 +15,7 @@ import { listen } from '@tauri-apps/api/event';
 import { HashRouter, Routes, Route } from 'react-router-dom';
 
 const viewComponents = {
+  overview: Overview,
   devices: DevicePanel,
   mirror: MirrorView,
   files: FileManager,

@@ -204,6 +204,16 @@ async fn handle_connection(stream: TcpStream, app_handle: Arc<AppHandle>, valid_
                                     }
                                 } else if msg_type == "thumbnail_data" || msg_type == "dir_list_refresh_needed" || msg_type == "write_success" || msg_type == "debug_alert" {
                                     let _ = app_handle.emit(msg_type, json.clone());
+                                } else if msg_type == "wallpaper_update" {
+                                    let base64_data = json.get("data").and_then(|t| t.as_str()).unwrap_or("");
+                                    let _ = app_handle.emit("android_wallpaper_update", base64_data);
+                                    if let Some(app_dir) = app_handle.path().app_data_dir().ok() {
+                                        let wp_path = app_dir.join("android_wallpaper.jpg");
+                                        use base64::Engine;
+                                        if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(base64_data) {
+                                            let _ = std::fs::write(wp_path, bytes);
+                                        }
+                                    }
                                 } else if msg_type == "mouse_move" {
                                     if let (Some(dx), Some(dy)) = (json.get("dx").and_then(|v| v.as_i64()), json.get("dy").and_then(|v| v.as_i64())) {
                                         use tauri::Manager;

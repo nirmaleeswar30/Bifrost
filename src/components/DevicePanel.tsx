@@ -40,13 +40,13 @@ export default function DevicePanel() {
   const [savedDevices, setSavedDevices] = useState<Device[]>([]);
   const [activeTab, setActiveTab] = useState<'scan' | 'qr'>('scan');
 
-  useEffect(() => {
-    const fetchSaved = () => {
-      invoke<Device[]>('get_saved_devices')
-        .then(devices => setSavedDevices(devices))
-        .catch(console.error);
-    };
+  const fetchSaved = () => {
+    invoke<Device[]>('get_saved_devices')
+      .then(devices => setSavedDevices(devices))
+      .catch(console.error);
+  };
 
+  useEffect(() => {
     fetchSaved();
     
     // Listen for device-connected just to refresh saved devices
@@ -462,7 +462,17 @@ export default function DevicePanel() {
                         <DropdownMenuItem className="cursor-pointer" onClick={() => console.log("Device info", device)}>
                           Device Info
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => console.log("Forget device", device)}>
+                        <DropdownMenuItem
+                          className="cursor-pointer text-destructive focus:text-destructive-foreground focus:bg-destructive"
+                          onClick={async () => {
+                            try {
+                              await invoke('forget_device', { id: device.id });
+                              fetchSaved();
+                            } catch (e) {
+                              console.error("Failed to forget device:", e);
+                            }
+                          }}
+                        >
                           Forget Device
                         </DropdownMenuItem>
                       </DropdownMenuContent>

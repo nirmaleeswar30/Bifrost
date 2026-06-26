@@ -99,4 +99,9 @@ impl Database {
         }
         Ok(devices)
     }
+
+    pub fn delete_device(&self, id: &str) -> Result<(), DbError> {
+        self.conn.execute("DELETE FROM devices WHERE id = ?1", params![id])?;
+        Ok(())
+    }
 }
