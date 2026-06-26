@@ -152,6 +152,16 @@ fn forget_device(state: State<'_, AppState>, id: String) -> Result<(), String> {
     }
 }
 
+#[tauri::command]
+fn rename_device(state: State<'_, AppState>, id: String, new_name: String) -> Result<(), String> {
+    let db = state.db.lock().unwrap();
+    if let Some(db) = db.as_ref() {
+        db.rename_device(&id, &new_name).map_err(|e| e.to_string())
+    } else {
+        Err("Database not initialized".into())
+    }
+}
+
 #[derive(serde::Serialize)]
 struct DeviceStorage {
     used: u64,
@@ -256,13 +266,17 @@ fn get_gnome_wallpaper_path() -> Option<std::path::PathBuf> {
 }
 
 fn resize_and_encode_image(path: &std::path::Path) -> Option<String> {
-    let img = image::open(path).ok()?;
-    let resized = img.resize(240, 160, image::imageops::FilterType::Triangle);
-    let mut buffer = std::io::Cursor::new(Vec::new());
-    resized.write_to(&mut buffer, image::ImageFormat::Jpeg).ok()?;
-    use base64::Engine;
-    let b64 = base64::engine::general_purpose::STANDARD.encode(buffer.get_ref());
-    Some(format!("data:image/jpeg;base64,{}", b64))
+    if let Ok(bytes) = std::fs::read(path) {
+        use base64::Engine;
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+        let mime = if path.extension().map_or(false, |ext| ext.eq_ignore_ascii_case("png")) {
+            "image/png"
+        } else {
+            "image/jpeg"
+        };
+        return Some(format!("data:{};base64,{}", mime, b64));
+    }
+    None
 }
 
 async fn run_adb_shell(device_id: &str, args: &[&str]) -> Option<String> {
@@ -692,6 +706,7 @@ pub fn run() {
             get_qr_code,
             get_saved_devices,
             forget_device,
+            rename_device,
             get_dashboard_overview,
             list_devices,
             get_connection_state,

@@ -418,27 +418,41 @@ class ConnectionService : Service() {
     private fun sendWallpaper(webSocket: WebSocket) {
         try {
             val wallpaperManager = android.app.WallpaperManager.getInstance(this)
-            val drawable = wallpaperManager.drawable
-            if (drawable != null) {
-                val bitmap = (drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
-                if (bitmap != null) {
-                    val width = bitmap.width
-                    val height = bitmap.height
-                    val scale = Math.min(320f / width, 240f / height)
-                    val matrix = android.graphics.Matrix().apply { postScale(scale, scale) }
-                    val resized = android.graphics.Bitmap.createBitmap(bitmap, 0, 0, width, height, matrix, true)
-                    
-                    val stream = java.io.ByteArrayOutputStream()
-                    resized.compress(android.graphics.Bitmap.CompressFormat.JPEG, 75, stream)
-                    val bytes = stream.toByteArray()
-                    val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-                    
-                    val message = JSONObject().apply {
-                        put("type", "wallpaper_update")
-                        put("data", b64)
-                    }.toString()
-                    webSocket.send(message)
+            var bytes: ByteArray? = null
+            
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                try {
+                    val pfd = wallpaperManager.getWallpaperFile(android.app.WallpaperManager.FLAG_SYSTEM)
+                    if (pfd != null) {
+                        val fileDescriptor = pfd.fileDescriptor
+                        val inputStream = java.io.FileInputStream(fileDescriptor)
+                        bytes = inputStream.readBytes()
+                        pfd.close()
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("BifrostWS", "Failed to read wallpaper file: " + e.message)
                 }
+            }
+            
+            if (bytes == null) {
+                val drawable = wallpaperManager.drawable
+                if (drawable != null) {
+                    val bitmap = (drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                    if (bitmap != null) {
+                        val stream = java.io.ByteArrayOutputStream()
+                        bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, stream)
+                        bytes = stream.toByteArray()
+                    }
+                }
+            }
+            
+            if (bytes != null) {
+                val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                val message = JSONObject().apply {
+                    put("type", "wallpaper_update")
+                    put("data", b64)
+                }.toString()
+                webSocket.send(message)
             }
         } catch (e: Exception) {
             android.util.Log.e("BifrostWS", "Failed to send wallpaper: " + e.message)

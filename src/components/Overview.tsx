@@ -3,22 +3,28 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import {
   Smartphone,
-  Monitor,
   FolderOpen,
   ClipboardCopy,
   Battery,
   Wifi,
   ChevronRight,
-  RotateCw,
   Cpu,
   CheckCircle,
   AlertCircle,
+  RotateCw,
+  Monitor,
   Laptop
 } from 'lucide-react';
 import { useDeviceStore } from '../stores/deviceStore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 
 interface DeviceData {
   id: string;
@@ -39,24 +45,40 @@ export default function Overview() {
   const {
     connectionState,
     connectedDevice,
-    setActiveView
+    devices,
+    setActiveView,
+    setConnectedDevice,
+    setConnectionState,
+    setDevices
   } = useDeviceStore();
 
   const isConnected = connectionState === 'connected';
+
+  const handleDisconnect = () => {
+    setConnectedDevice(null);
+    setConnectionState('disconnected');
+    setDevices(devices.map((d) => ({ ...d, isConnected: false })));
+  };
+
+  const handleForgetDevice = async (deviceId: string) => {
+    try {
+      await invoke('forget_device', { id: deviceId });
+      handleDisconnect();
+      loadDashboardData();
+    } catch (e) {
+      console.error("Failed to forget device:", e);
+    }
+  };
   const [overview, setOverview] = useState<DashboardOverviewData | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [activities, setActivities] = useState<any[]>([]);
 
   // Query Linux and Android metrics from backend
   const loadDashboardData = async () => {
-    setIsRefreshing(true);
     try {
       const data = await invoke<DashboardOverviewData>('get_dashboard_overview');
       setOverview(data);
     } catch (e) {
       console.error("Failed to load dashboard overview:", e);
-    } finally {
-      setIsRefreshing(false);
     }
   };
 
@@ -188,7 +210,7 @@ export default function Overview() {
     return Math.round((used / total) * 100);
   };
 
-  const android = overview?.android;
+  const android = isConnected ? overview?.android : null;
   const linux = overview?.linux;
 
   // Custom vector phone background styles
@@ -196,24 +218,120 @@ export default function Overview() {
     ? { backgroundImage: `url(${android.wallpaper})`, backgroundSize: 'cover', backgroundPosition: 'center' }
     : { background: 'linear-gradient(to bottom right, #4f46e5, #7c3aed, #ec4899)' };
 
-  // Custom vector laptop screen background styles
-  const linuxWallpaperStyle = linux?.wallpaper
-    ? { backgroundImage: `url(${linux.wallpaper})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-    : { background: 'linear-gradient(to bottom right, #1e1b4b, #311042, #1e293b)' };
-
   return (
     <div className="flex-1 overflow-y-auto bg-bg-primary select-none p-6 animate-fade-in">
       <div className="max-w-5xl mx-auto space-y-6">
 
-        {/* METRICS SUMMARY CARD */}
-        <Card className="bg-bg-surface/30 border-border/50 shadow-none overflow-hidden">
-          <CardContent className="p-0">
-            <div className="grid grid-cols-1 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border/50">
+        {/* COMBINED DEVICE PREVIEW & STATUS METRICS */}
+        <Card className="bg-bg-surface/30 border-border/50 shadow-none overflow-hidden p-6 flex flex-col md:flex-row items-center gap-8">
+          
+          {/* Left: Custom Slim Vector Phone Illustration */}
+          <div className="shrink-0 flex items-center justify-center select-none pointer-events-none">
+            <div className="relative w-36 h-72 rounded-[28px] border-4 border-neutral-700 bg-neutral-950 p-1 shadow-inner overflow-hidden flex items-center justify-center">
+              <div className="absolute top-3.5 w-2.5 h-2.5 bg-neutral-900 rounded-full z-10 border border-neutral-800" />
               
-              {/* Col 1: Connection Status */}
-              <div className="flex items-center gap-3.5 p-4.5">
+              {/* Screen Wallpaper */}
+              <div
+                className="w-full h-full rounded-[22px] overflow-hidden flex flex-col justify-between p-3.5 relative"
+                style={phoneWallpaperStyle}
+              >
+                {/* Shadow overlay if wallpaper exists */}
+                {android?.wallpaper && <div className="absolute inset-0 bg-black/15 pointer-events-none z-0" />}
+
+                {/* Tiny Status indicators */}
+                <div className="flex justify-between items-center text-[8px] font-bold text-white/80 tracking-wider z-10">
+                  <span>9:41</span>
+                  <div className="flex gap-0.8">
+                    <Wifi className="w-3 h-3" />
+                    <Battery className="w-3 h-3" />
+                  </div>
+                </div>
+                
+                {/* Home Indicator */}
+                <div className="space-y-2 z-10">
+                  <div className="text-[8px] font-bold text-center text-white/85 tracking-wider uppercase">
+                    Bifrost
+                  </div>
+                  <div className="w-14 h-0.8 bg-white/40 rounded-full mx-auto" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Device details and Metrics Grid */}
+          <div className="flex-1 w-full space-y-5">
+            <div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-text-primary leading-tight">
+                    {android ? android.name : 'No Android Device Connected'}
+                  </h2>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    {android ? `${android.model} • Android OS` : 'Pair or connect a device to see status'}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={loadDashboardData}
+                    variant="ghost"
+                    size="icon"
+                    className="h-8.5 w-8.5 text-text-muted hover:text-text-primary hover:bg-bg-hover rounded-md cursor-pointer"
+                  >
+                    <RotateCw className="w-4 h-4" />
+                  </Button>
+                  {android && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8.5 text-xs font-semibold border-border bg-bg-surface hover:bg-bg-hover text-text-secondary hover:text-text-primary cursor-pointer shadow-none"
+                        >
+                          Manage Device
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40 bg-bg-surface border-border">
+                        <DropdownMenuItem
+                          className="cursor-pointer text-text-primary hover:bg-bg-hover"
+                          onClick={() => {
+                            const newName = prompt("Rename device:", android.name);
+                            if (newName && newName.trim()) {
+                              invoke('rename_device', { id: android.id, newName: newName.trim() })
+                                .then(() => loadDashboardData())
+                                .catch(console.error);
+                            }
+                          }}
+                        >
+                          Rename
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="cursor-pointer text-text-primary hover:bg-bg-hover"
+                          onClick={handleDisconnect}
+                        >
+                          Disconnect
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="cursor-pointer text-destructive focus:text-destructive-foreground focus:bg-destructive hover:bg-destructive"
+                          onClick={() => handleForgetDevice(android.id)}
+                        >
+                          Forget Device
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <hr className="border-border/40" />
+
+            {/* Metrics Grid */}
+            <div className="grid grid-cols-2 gap-4">
+              
+              {/* Metric 1: Connection Status */}
+              <div className="flex items-center gap-3">
                 <div className={cn(
-                  "w-8 h-8 rounded-lg flex items-center justify-center border",
+                  "w-8.5 h-8.5 rounded-lg flex items-center justify-center border",
                   getStatusIconColor()
                 )}>
                   {isConnected ? (
@@ -222,50 +340,22 @@ export default function Overview() {
                     <AlertCircle className="w-4.5 h-4.5" strokeWidth={2} />
                   )}
                 </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Connection Status</span>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Status</span>
                   <span className="text-xs font-bold text-text-primary leading-snug">{getStatusText()}</span>
                 </div>
               </div>
 
-              {/* Col 2: Active Connection Count */}
-              <div className="flex items-center gap-3.5 p-4.5">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center border border-border/50 bg-bg-secondary text-text-secondary">
-                  <Smartphone className="w-4.5 h-4.5" strokeWidth={1.8} />
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Active Link</span>
-                  <span className="text-xs font-bold text-text-primary leading-snug">
-                    {isConnected ? '1 Connected' : '0 Connected'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Col 3: Battery Level (Primary Device) */}
-              <div className="flex items-center gap-3.5 p-4.5">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center border border-success/20 bg-success-muted text-success">
-                  <Battery className="w-4.5 h-4.5" strokeWidth={1.8} />
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                    {android ? `Battery (${android.name})` : 'Android Battery'}
-                  </span>
-                  <span className="text-xs font-bold text-text-primary leading-snug">
-                    {android && android.battery !== null ? `${android.battery}%` : 'N/A'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Col 4: Connection Type */}
-              <div className="flex items-center gap-3.5 p-4.5">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center border border-border/50 bg-bg-secondary text-text-secondary">
+              {/* Metric 2: Connection Type */}
+              <div className="flex items-center gap-3">
+                <div className="w-8.5 h-8.5 rounded-lg flex items-center justify-center border border-border/50 bg-bg-secondary text-text-secondary">
                   {connectedDevice?.connectionType === 'usb' ? (
                     <Cpu className="w-4.5 h-4.5" strokeWidth={1.8} />
                   ) : (
                     <Wifi className="w-4.5 h-4.5" strokeWidth={1.8} />
                   )}
                 </div>
-                <div className="flex flex-col gap-0.5">
+                <div className="flex flex-col">
                   <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Connection</span>
                   <span className="text-xs font-bold text-text-primary leading-snug">
                     {isConnected ? (connectedDevice?.connectionType === 'usb' ? 'USB Link' : 'Wi-Fi Link') : 'None'}
@@ -273,8 +363,35 @@ export default function Overview() {
                 </div>
               </div>
 
+              {/* Metric 3: Battery Level */}
+              <div className="flex items-center gap-3">
+                <div className="w-8.5 h-8.5 rounded-lg flex items-center justify-center border border-success/20 bg-success-muted text-success">
+                  <Battery className="w-4.5 h-4.5" strokeWidth={1.8} />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Battery</span>
+                  <span className="text-xs font-bold text-text-primary leading-snug">
+                    {android && android.battery !== null ? `${android.battery}% ${android.charging ? '(Charging)' : ''}` : 'N/A'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Metric 4: Storage */}
+              <div className="flex items-center gap-3">
+                <div className="w-8.5 h-8.5 rounded-lg flex items-center justify-center border border-border/50 bg-bg-secondary text-text-secondary">
+                  <FolderOpen className="w-4.5 h-4.5" strokeWidth={1.8} />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Storage</span>
+                  <span className="text-xs font-bold text-text-primary leading-snug">
+                    {android && android.storage ? `${formatGB(android.storage.used)} / ${formatGB(android.storage.total)}` : 'N/A'}
+                  </span>
+                </div>
+              </div>
+
             </div>
-          </CardContent>
+
+          </div>
         </Card>
 
         {/* QUICK ACTIONS SECTION */}
@@ -513,188 +630,6 @@ export default function Overview() {
             </Card>
           </div>
 
-        </div>
-
-        {/* DEVICE PREVIEW SECTION (GRID) */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Device Preview</h2>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-text-muted hover:text-text-primary hover:bg-bg-hover rounded-md cursor-pointer"
-              onClick={loadDashboardData}
-              disabled={isRefreshing}
-            >
-              <RotateCw className={cn("w-3.5 h-3.5", isRefreshing && "animate-spin")} />
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            
-            {/* Card 1: Connected Android Device */}
-            <Card className="bg-bg-surface/30 border-border/50 shadow-none p-5 flex items-center justify-between">
-              <div className="flex items-center gap-5">
-                
-                {/* Custom Vector Phone Illustration with Current Wallpaper */}
-                <div className="relative w-18 h-32 rounded-[18px] border-3 border-neutral-700 bg-neutral-950 p-1 shadow-inner shrink-0 overflow-hidden flex items-center justify-center">
-                  <div className="absolute top-1.5 w-7 h-0.7 bg-neutral-800 rounded-full z-10" />
-                  <div className="absolute top-3 w-1.5 h-1.5 bg-neutral-900 rounded-full z-10 border border-neutral-800" />
-                  
-                  {/* Screen Wallpaper */}
-                  <div
-                    className="w-full h-full rounded-[13px] overflow-hidden flex flex-col justify-between p-2.5 relative select-none"
-                    style={phoneWallpaperStyle}
-                  >
-                    {/* Shadow overlay if wallpaper exists */}
-                    {android?.wallpaper && <div className="absolute inset-0 bg-black/15 pointer-events-none z-0" />}
-
-                    {/* Tiny Status indicators */}
-                    <div className="flex justify-between items-center text-[5px] font-bold text-white/70 tracking-wider z-10">
-                      <span>9:41</span>
-                      <div className="flex gap-0.5">
-                        <Wifi className="w-1.5 h-1.5" />
-                        <Battery className="w-1.5 h-1.5" />
-                      </div>
-                    </div>
-                    
-                    {/* Centered logo icon */}
-                    <div className="w-full flex-1 flex items-center justify-center z-10">
-                      <div className="w-7 h-7 rounded-full bg-white/10 border border-white/20 flex items-center justify-center backdrop-blur-2xs shadow-inner">
-                        <Smartphone className="w-3.5 h-3.5 text-white" strokeWidth={1.5} />
-                      </div>
-                    </div>
-                    
-                    {/* Small name */}
-                    <div className="text-[5px] font-bold text-center text-white/70 tracking-wider uppercase z-10">
-                      Bifrost
-                    </div>
-                  </div>
-                </div>
-
-                {/* Info Stack */}
-                <div className="flex flex-col gap-1.5">
-                  <div>
-                    <h3 className="text-sm font-bold text-text-primary leading-tight">
-                      {android ? android.name : 'Android Phone'}
-                    </h3>
-                    <p className="text-[11px] text-text-muted mt-0.5">
-                      {android ? android.model : 'Disconnected'}
-                    </p>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    {/* Connection Status Badge */}
-                    <div className="flex items-center gap-1.5">
-                      <span className={cn("w-1.5 h-1.5 rounded-full", android ? "bg-success" : "bg-text-muted/40")} />
-                      <span className="text-[10px] text-text-secondary font-semibold">
-                        {android ? 'Connected' : 'Offline'}
-                      </span>
-                    </div>
-
-                    {/* Battery Level */}
-                    <div className="flex items-center gap-1.5 text-text-muted">
-                      <Battery className={cn("w-3 h-3", android ? "text-success" : "text-text-muted")} />
-                      <span className="text-[10px] font-medium">
-                        {android && android.battery !== null ? `${android.battery}%` : 'N/A'} Battery
-                      </span>
-                    </div>
-
-                    {/* Wifi Connection */}
-                    <div className="flex items-center gap-1.5 text-text-muted">
-                      <Wifi className="w-3 h-3" />
-                      <span className="text-[10px] font-medium">
-                        {android ? (connectedDevice?.connectionType === 'usb' ? 'USB Connection' : 'Wi-Fi Connection') : 'No connection'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-              <div>
-                <Button
-                  onClick={() => setActiveView('devices')}
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs font-semibold border-border bg-bg-surface hover:bg-bg-hover text-text-secondary hover:text-text-primary cursor-pointer shadow-none"
-                >
-                  {android ? 'Manage' : 'Connect'}
-                </Button>
-              </div>
-            </Card>
-
-            {/* Card 2: Local Linux Host */}
-            {linux && (
-              <Card className="bg-bg-surface/30 border-border/50 shadow-none p-5 flex items-center justify-between">
-                <div className="flex items-center gap-5">
-                  
-                  {/* Custom Vector Laptop Illustration with Desktop Wallpaper */}
-                  <div className="flex flex-col items-center shrink-0 py-2 select-none pointer-events-none">
-                    {/* Screen */}
-                    <div className="w-24 h-16 rounded-lg border-2 border-neutral-700 bg-neutral-950 p-1 flex items-center justify-center relative shadow-inner">
-                      <div
-                        className="w-full h-full rounded overflow-hidden flex items-center justify-center relative"
-                        style={linuxWallpaperStyle}
-                      >
-                        {linux.wallpaper && <div className="absolute inset-0 bg-black/15 z-0" />}
-                        <Laptop className="w-4 h-4 text-white z-10" strokeWidth={1.5} />
-                      </div>
-                    </div>
-                    {/* Keyboard deck base */}
-                    <div className="w-28 h-1.5 bg-neutral-600 rounded-b-md relative flex items-center justify-center">
-                      <div className="absolute top-0 w-8 h-0.5 bg-neutral-800 rounded-b" />
-                    </div>
-                    {/* Feet */}
-                    <div className="w-20 h-0.7 bg-neutral-800 rounded-b-lg opacity-80" />
-                  </div>
-
-                  {/* Info Stack */}
-                  <div className="flex flex-col gap-1.5">
-                    <div>
-                      <h3 className="text-sm font-bold text-text-primary leading-tight">{linux.name}</h3>
-                      <p className="text-[11px] text-text-muted mt-0.5">{linux.model}</p>
-                    </div>
-                    
-                    <div className="space-y-1">
-                      {/* Connection Badge (Local PC is always connected) */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-success" />
-                        <span className="text-[10px] text-text-secondary font-semibold">Online</span>
-                      </div>
-
-                      {/* Battery Level */}
-                      <div className="flex items-center gap-1.5 text-text-muted">
-                        <Battery className="w-3 h-3 text-primary" />
-                        <span className="text-[10px] font-medium">
-                          {linux.battery !== null ? `${linux.battery}%` : 'AC Power'}
-                        </span>
-                      </div>
-
-                      {/* Connection Protocol type */}
-                      <div className="flex items-center gap-1.5 text-text-muted">
-                        <Wifi className="w-3 h-3" />
-                        <span className="text-[10px] font-medium">Local Host</span>
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-
-                <div>
-                  <Button
-                    onClick={() => setActiveView('settings')}
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs font-semibold border-border bg-bg-surface hover:bg-bg-hover text-text-secondary hover:text-text-primary cursor-pointer shadow-none"
-                  >
-                    Settings
-                  </Button>
-                </div>
-              </Card>
-            )}
-
-          </div>
         </div>
 
       </div>
